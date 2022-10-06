@@ -1,0 +1,11 @@
+C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\bin\Debug\Dexpedition64.exe.config
+C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\bin\Debug\Dexpedition64.exe
+C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\bin\Debug\Dexpedition64.pdb
+C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.csproj.AssemblyReference.cache
+C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.csproj.SuggestedBindingRedirects.cache
+C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.MainForm.resources
+C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.Properties.Resources.resources
+C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.csproj.GenerateResource.cache
+C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.csproj.CoreCompileInputs.cache
+C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.exe
+C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.pdb
