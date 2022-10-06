@@ -177,6 +177,17 @@ namespace Dexpedition64
             return ReturnDataBuffer;
         }
 
+        public byte[] BlankPage()
+        {
+            byte[] zeroes = new byte[256];
+            int i;
+            for (i = 0; i < 256; i++)
+            {
+                zeroes[i] = 0x00;
+            }
+            return zeroes;
+        }
+
         //Write a specified frame to a Memory Card
         public bool WriteMemoryCardFrame(ushort FrameNumber, byte[] FrameData)
         {

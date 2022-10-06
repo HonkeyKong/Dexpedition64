@@ -36,6 +36,9 @@
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.toolStripProgressBar1 = new System.Windows.Forms.ToolStripProgressBar();
             this.lblStatus = new System.Windows.Forms.ToolStripStatusLabel();
+            this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            this.openFileDialog2 = new System.Windows.Forms.OpenFileDialog();
+            this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
             this.statusStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -122,6 +125,14 @@
             this.lblStatus.Size = new System.Drawing.Size(39, 17);
             this.lblStatus.Text = "Ready";
             // 
+            // openFileDialog1
+            // 
+            this.openFileDialog1.FileName = "openFileDialog1";
+            // 
+            // openFileDialog2
+            // 
+            this.openFileDialog2.FileName = "openFileDialog2";
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -152,6 +163,9 @@
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripProgressBar toolStripProgressBar1;
         private System.Windows.Forms.ToolStripStatusLabel lblStatus;
+        private System.Windows.Forms.OpenFileDialog openFileDialog1;
+        private System.Windows.Forms.OpenFileDialog openFileDialog2;
+        private System.Windows.Forms.SaveFileDialog saveFileDialog1;
     }
 }
 

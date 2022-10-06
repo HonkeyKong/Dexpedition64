@@ -40,19 +40,30 @@ namespace Dexpedition64
 
         private void btnRead_Click(object sender, EventArgs e)
         {
-            using (FileStream fs = File.OpenWrite(@"output.mpk"))
+            SaveFileDialog saveFile = new SaveFileDialog();
+            saveFile.Filter = "Memory Pak files (*.mpk)|*.mpk|All files (*.*)|*.*";
+            saveFile.FilterIndex = 0;
+            saveFile.ShowDialog();
+            if (saveFile.FileName != "")
             {
-                DexDrive drive = new DexDrive();
-                InitDexDrive(drive, cbComPort.Text);
-                ushort i;
-                for (i = 0; i < 128; i++)
+                using (FileStream fs = File.OpenWrite(saveFile.FileName))
                 {
-                    // Read a frame from the memory card.
-                    byte[] cardData = drive.ReadMemoryCardFrame(i);
-                    fs.Write(cardData, 0, cardData.Length);
-                    toolStripProgressBar1.PerformStep(); 
+                    lblStatus.Text = "Reading Card...";
+                    toolStripProgressBar1.Value = 0;
+                    toolStripProgressBar1.Step = 1;
+                    DexDrive drive = new DexDrive();
+                    InitDexDrive(drive, cbComPort.Text);
+                    ushort i;
+                    for (i = 0; i < 128; i++)
+                    {
+                        // Read a frame from the memory card.
+                        byte[] cardData = drive.ReadMemoryCardFrame(i);
+                        fs.Write(cardData, 0, cardData.Length);
+                        toolStripProgressBar1.PerformStep();
+                    }
+                    drive.StopDexDrive();
+                    lblStatus.Text = "Card Read.";
                 }
-                drive.StopDexDrive();
             }
         }
 
@@ -63,15 +74,17 @@ namespace Dexpedition64
 
         private void btnFormat_Click(object sender, EventArgs e)
         {
-            using (FileStream fs = File.OpenRead(@"C:\Users\honke\Downloads\New.mpk"))
+            using (FileStream fs = File.OpenRead(@"C:\Users\honke\Downloads\format.bin"))
             {
+                toolStripProgressBar1.Value = 0;
+                toolStripProgressBar1.Step = 25;
                 DexDrive drive = new DexDrive();
                 InitDexDrive(drive, cbComPort.Text);
                 BinaryReader br = new BinaryReader(fs);
                 byte[] cardBuf = new byte[256];
                 ushort i;
                 lblStatus.Text = "Formatting Card...";
-                for (i = 0; i < 128; i++)
+                for (i = 0; i < 5; i++)
                 {
                     // Read a frame from the file.
                     cardBuf = br.ReadBytes(256);
@@ -83,47 +96,55 @@ namespace Dexpedition64
                     }
                     else
                     {
-                        //Console.Write(".");
                         toolStripProgressBar1.PerformStep();
                     }
 
                     cardBuf.Initialize();
                 }
                 drive.StopDexDrive();
+                toolStripProgressBar1.Value = 127;
                 lblStatus.Text = "Card formatted.";
             }
         }
 
         private void btnWrite_Click(object sender, EventArgs e)
         {
-            using (FileStream fs = File.OpenRead(@"C:\Users\honke\Downloads\test.mpk"))
+            OpenFileDialog writeFile = new OpenFileDialog();
+            writeFile.Filter = "Memory Pak files (*.mpk)|*.mpk|All files (*.*)|*.*";
+            writeFile.FilterIndex = 0;
+            writeFile.ShowDialog();
+            if (writeFile.FileName != "")
             {
-                DexDrive drive = new DexDrive();
-                InitDexDrive(drive, cbComPort.Text);
-                BinaryReader br = new BinaryReader(fs);
-                byte[] cardBuf = new byte[256];
-                ushort i;
-                lblStatus.Text = "Writing Card...";
-                for (i = 0; i < 128; i++)
+                using (FileStream fs = File.OpenRead(writeFile.FileName))
                 {
-                    // Read a frame from the file.
-                    cardBuf = br.ReadBytes(256);
-
-                    if (!drive.WriteMemoryCardFrame(i, cardBuf))
+                    toolStripProgressBar1.Value = 0;
+                    toolStripProgressBar1.Step = 1;
+                    DexDrive drive = new DexDrive();
+                    InitDexDrive(drive, cbComPort.Text);
+                    BinaryReader br = new BinaryReader(fs);
+                    byte[] cardBuf = new byte[256];
+                    ushort i;
+                    lblStatus.Text = "Writing Card...";
+                    for (i = 0; i < 128; i++)
                     {
-                        lblStatus.Text = "Writing frame failed.";
-                        return;
-                    }
-                    else
-                    {
-                        //Console.Write(".");
-                        toolStripProgressBar1.PerformStep();
-                    }
+                        // Read a frame from the file.
+                        cardBuf = br.ReadBytes(256);
 
-                    cardBuf.Initialize();
+                        if (!drive.WriteMemoryCardFrame(i, cardBuf))
+                        {
+                            lblStatus.Text = "Writing frame failed.";
+                            return;
+                        }
+                        else
+                        {
+                            toolStripProgressBar1.PerformStep();
+                        }
+
+                        cardBuf.Initialize();
+                    }
+                    drive.StopDexDrive();
+                    lblStatus.Text = "Card Written.";
                 }
-                drive.StopDexDrive();
-                lblStatus.Text = "Card Written.";
             }
         }
     }
