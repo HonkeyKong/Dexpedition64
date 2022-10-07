@@ -89,12 +89,18 @@ namespace Dexpedition64
                 ushort i;
 
                 lblStatus.Text = "Formatting Card...";
-
                 string strFailed = "Writing frame failed.";
 
-                for (i = 0; i < 3; i++)
+                if (!drive.WriteMemoryCardFrame(0, CardData.BuildHeader()))
                 {
-                    if (!drive.WriteMemoryCardFrame(i, CardData.formatPage[i]))
+                    lblStatus.Text = strFailed;
+                    return;
+                }
+                toolStripProgressBar1.PerformStep();
+
+                for (i = 1; i < 3; i++)
+                {
+                    if (!drive.WriteMemoryCardFrame(i, CardData.formatPage))
                     {
                         lblStatus.Text = strFailed;
                         return;
