@@ -177,7 +177,7 @@ namespace Dexpedition64
             return ReturnDataBuffer;
         }
 
-        public byte[] BlankPage()
+        public static byte[] BlankPage()
         {
             byte[] zeroes = new byte[256];
             int i;

@@ -74,33 +74,44 @@ namespace Dexpedition64
 
         private void btnFormat_Click(object sender, EventArgs e)
         {
-            using (FileStream fs = File.OpenRead(@"C:\Users\honke\Downloads\format.bin"))
+            System.Windows.Forms.DialogResult yn = MessageBox.Show("Format Card? WARNING: ALL DATA WILL BE LOST.", "Format Card", MessageBoxButtons.YesNo);
+            if (yn == System.Windows.Forms.DialogResult.No)
+            {
+                lblStatus.Text = "Format cancelled.";
+                return;
+            }
+            else if (yn == System.Windows.Forms.DialogResult.Yes)
             {
                 toolStripProgressBar1.Value = 0;
                 toolStripProgressBar1.Step = 25;
                 DexDrive drive = new DexDrive();
                 InitDexDrive(drive, cbComPort.Text);
-                BinaryReader br = new BinaryReader(fs);
-                byte[] cardBuf = new byte[256];
                 ushort i;
-                lblStatus.Text = "Formatting Card...";
-                for (i = 0; i < 5; i++)
-                {
-                    // Read a frame from the file.
-                    cardBuf = br.ReadBytes(256);
 
-                    if (!drive.WriteMemoryCardFrame(i, cardBuf))
+                lblStatus.Text = "Formatting Card...";
+
+                string strFailed = "Writing frame failed.";
+
+                for (i = 0; i < 3; i++)
+                {
+                    if (!drive.WriteMemoryCardFrame(i, CardData.formatPage[i]))
                     {
-                        lblStatus.Text = "Writing frame failed.";
+                        lblStatus.Text = strFailed;
                         return;
                     }
-                    else
-                    {
-                        toolStripProgressBar1.PerformStep();
-                    }
-
-                    cardBuf.Initialize();
+                    toolStripProgressBar1.PerformStep();
                 }
+
+                for (i = 3; i < 5; i++)
+                {
+                    if (!drive.WriteMemoryCardFrame(i, DexDrive.BlankPage()))
+                    {
+                        lblStatus.Text = strFailed;
+                        return;
+                    }
+                    toolStripProgressBar1.PerformStep();
+                }
+
                 drive.StopDexDrive();
                 toolStripProgressBar1.Value = 127;
                 lblStatus.Text = "Card formatted.";
