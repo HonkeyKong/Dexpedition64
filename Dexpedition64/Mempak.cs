@@ -131,7 +131,7 @@ namespace Dexpedition64
             IDBlock[27] = 0;
 
             ushort ckSum1 = 0;
-            for (i = 0; i < 24; i += 2)
+            for (i = 0; i < 28; i += 2)
             {
                 ushort ckWord = (ushort)((IDBlock[i] << 8) + (IDBlock[i + 1]));
                 ckSum1 += ckWord;
@@ -139,10 +139,10 @@ namespace Dexpedition64
 
             ushort ckSum2 = (ushort)(0xFFF2 - ckSum1);
 
-            IDBlock[28] = (byte)((ckSum1 >> 8 & 0xFF) + 1);
-            IDBlock[29] = (byte)((ckSum1 & 0xFF) + 1);
-            IDBlock[30] = (byte)((ckSum2 >> 8 & 0xFF) - 1);
-            IDBlock[31] = (byte)((ckSum2 & 0xFF) - 1);
+            IDBlock[28] = (byte)(ckSum1 >> 8 & 0xFF);
+            IDBlock[29] = (byte)(ckSum1 & 0xFF);
+            IDBlock[30] = (byte)(ckSum2 >> 8 & 0xFF);
+            IDBlock[31] = (byte)(ckSum2 & 0xFF);
 
             return IDBlock;
         }
