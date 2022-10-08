@@ -1,12 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
+/*using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
-using System.Drawing;
+using System.Drawing;*/
 using System.IO;
-using System.Linq;
+/*using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading.Tasks;*/
 using System.Windows.Forms;
 
 namespace Dexpedition64
@@ -18,24 +18,12 @@ namespace Dexpedition64
             InitializeComponent();
         }
 
-        private void InitDexDrive(DexDrive drive, string comPort)
+        private void ShowDexError()
         {
-            string ret = drive.StartDexDrive(comPort);
-            if (ret != null)
-            {
-                Console.WriteLine(ret + " DexDrive detected.");
-                statusStrip1.Text = (ret + " DexDrive detected.");
-            }
-            if (ret == "PSX")
-            {
-                statusStrip1.Text = "PSX DexDrive unsupported. Try MemCardRex: https://github.com/ShendoXT/memcardrex";
-                return;
-            }
-            else
-            {
-                statusStrip1.Text =  "Error: DexDrive not detected.";
-                return;
-            }
+            MessageBox.Show("Error: Failed to init DexDrive." +
+                            "\nAre you sure your DexDrive is plugged in?" +
+                            "\nTry disconnecting and reconnecting the power.",
+                            "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
 
         private void btnRead_Click(object sender, EventArgs e)
@@ -49,20 +37,39 @@ namespace Dexpedition64
                 using (FileStream fs = File.OpenWrite(saveFile.FileName))
                 {
                     lblStatus.Text = "Reading Card...";
-                    toolStripProgressBar1.Value = 0;
-                    toolStripProgressBar1.Step = 1;
+                    pbCardProgress.Value = 0;
+                    pbCardProgress.Step = 1;
                     DexDrive drive = new DexDrive();
-                    InitDexDrive(drive, cbComPort.Text);
-                    ushort i;
-                    for (i = 0; i < 128; i++)
+                    if (drive.StartDexDrive(cbComPort.Text))
                     {
-                        // Read a frame from the memory card.
-                        byte[] cardData = drive.ReadMemoryCardFrame(i);
-                        fs.Write(cardData, 0, cardData.Length);
-                        toolStripProgressBar1.PerformStep();
+                        try
+                        {
+                            ushort i;
+                            for (i = 0; i < 128; i++)
+                            {
+                                // Read a frame from the memory card.
+                                byte[] cardData = drive.ReadMemoryCardFrame(i);
+                                fs.Write(cardData, 0, cardData.Length);
+                                pbCardProgress.PerformStep();
+                            }
+                            drive.StopDexDrive();
+                            lblStatus.Text = "Card Read.";
+                        }
+                        catch(Exception ex)
+                        {
+                            MessageBox.Show("Error: " + ex.Message +
+                                "\nAre you sure your DexDrive is plugged in?" +
+                                "\nTry disconnecting and reconnecting the power.",
+                                "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                            lblStatus.Text = "Read Failed.";
+                        }
                     }
-                    drive.StopDexDrive();
-                    lblStatus.Text = "Card Read.";
+                    else
+                    {
+                        ShowDexError();
+                        lblStatus.Text = "Read Failed.";
+                    }
                 }
             }
         }
@@ -74,7 +81,7 @@ namespace Dexpedition64
 
         private void btnFormat_Click(object sender, EventArgs e)
         {
-            System.Windows.Forms.DialogResult yn = MessageBox.Show("Format Card? WARNING: ALL DATA WILL BE LOST.", "Format Card", MessageBoxButtons.YesNo);
+            System.Windows.Forms.DialogResult yn = MessageBox.Show("Format Card?\nWARNING: ALL DATA WILL BE LOST.", "Format Card?", MessageBoxButtons.YesNo);
             if (yn == System.Windows.Forms.DialogResult.No)
             {
                 lblStatus.Text = "Format cancelled.";
@@ -82,45 +89,65 @@ namespace Dexpedition64
             }
             else if (yn == System.Windows.Forms.DialogResult.Yes)
             {
-                toolStripProgressBar1.Value = 0;
-                toolStripProgressBar1.Step = 25;
+                pbCardProgress.Value = 0;
+                pbCardProgress.Step = 25;
                 DexDrive drive = new DexDrive();
-                InitDexDrive(drive, cbComPort.Text);
-                ushort i;
 
-                lblStatus.Text = "Formatting Card...";
-                string strFailed = "Writing frame failed.";
-
-                if (!drive.WriteMemoryCardFrame(0, CardData.BuildHeader()))
+                if (drive.StartDexDrive(cbComPort.Text))
                 {
-                    lblStatus.Text = strFailed;
-                    return;
-                }
-                toolStripProgressBar1.PerformStep();
-
-                for (i = 1; i < 3; i++)
-                {
-                    if (!drive.WriteMemoryCardFrame(i, CardData.formatPage))
+                    try
                     {
-                        lblStatus.Text = strFailed;
-                        return;
-                    }
-                    toolStripProgressBar1.PerformStep();
-                }
+                        ushort i;
 
-                for (i = 3; i < 5; i++)
-                {
-                    if (!drive.WriteMemoryCardFrame(i, DexDrive.BlankPage()))
+                        lblStatus.Text = "Formatting Card...";
+                        string strFailed = "Writing frame failed.";
+
+                        if (!drive.WriteMemoryCardFrame(0, CardData.BuildHeader()))
+                        {
+                            lblStatus.Text = strFailed;
+                            return;
+                        }
+                        pbCardProgress.PerformStep();
+
+                        for (i = 1; i < 3; i++)
+                        {
+                            if (!drive.WriteMemoryCardFrame(i, CardData.FormatPage()))
+                            {
+                                lblStatus.Text = strFailed;
+                                return;
+                            }
+                            pbCardProgress.PerformStep();
+                        }
+
+                        for (i = 3; i < 5; i++)
+                        {
+                            if (!drive.WriteMemoryCardFrame(i, DexDrive.BlankPage()))
+                            {
+                                lblStatus.Text = strFailed;
+                                return;
+                            }
+                            pbCardProgress.PerformStep();
+                        }
+
+                        drive.StopDexDrive();
+                        pbCardProgress.Value = 127;
+                        lblStatus.Text = "Card formatted.";
+                    }
+                    catch (Exception ex)
                     {
-                        lblStatus.Text = strFailed;
-                        return;
-                    }
-                    toolStripProgressBar1.PerformStep();
-                }
+                        lblStatus.Text = "Format Failed.";
 
-                drive.StopDexDrive();
-                toolStripProgressBar1.Value = 127;
-                lblStatus.Text = "Card formatted.";
+                        MessageBox.Show("Error: " + ex.Message +
+                            "\nAre you sure your DexDrive is plugged in?" +
+                            "\nTry disconnecting and reconnecting the power.",
+                            "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+                else
+                {
+                    ShowDexError();
+                    lblStatus.Text = "Format Failed.";
+                }
             }
         }
 
@@ -134,33 +161,40 @@ namespace Dexpedition64
             {
                 using (FileStream fs = File.OpenRead(writeFile.FileName))
                 {
-                    toolStripProgressBar1.Value = 0;
-                    toolStripProgressBar1.Step = 1;
+                    pbCardProgress.Value = 0;
+                    pbCardProgress.Step = 1;
                     DexDrive drive = new DexDrive();
-                    InitDexDrive(drive, cbComPort.Text);
-                    BinaryReader br = new BinaryReader(fs);
-                    byte[] cardBuf = new byte[256];
-                    ushort i;
-                    lblStatus.Text = "Writing Card...";
-                    for (i = 0; i < 128; i++)
+                    if (drive.StartDexDrive(cbComPort.Text))
                     {
-                        // Read a frame from the file.
-                        cardBuf = br.ReadBytes(256);
-
-                        if (!drive.WriteMemoryCardFrame(i, cardBuf))
+                        BinaryReader br = new BinaryReader(fs);
+                        byte[] cardBuf = new byte[256];
+                        ushort i;
+                        lblStatus.Text = "Writing Card...";
+                        for (i = 0; i < 128; i++)
                         {
-                            lblStatus.Text = "Writing frame failed.";
-                            return;
-                        }
-                        else
-                        {
-                            toolStripProgressBar1.PerformStep();
-                        }
+                            // Read a frame from the file.
+                            cardBuf = br.ReadBytes(256);
 
-                        cardBuf.Initialize();
+                            if (!drive.WriteMemoryCardFrame(i, cardBuf))
+                            {
+                                lblStatus.Text = "Writing frame failed.";
+                                return;
+                            }
+                            else
+                            {
+                                pbCardProgress.PerformStep();
+                            }
+
+                            cardBuf.Initialize();
+                        }
+                        drive.StopDexDrive();
+                        lblStatus.Text = "Card Written.";
                     }
-                    drive.StopDexDrive();
-                    lblStatus.Text = "Card Written.";
+                    else
+                    {
+                        ShowDexError();
+                        lblStatus.Text = "Write failed.";
+                    }
                 }
             }
         }

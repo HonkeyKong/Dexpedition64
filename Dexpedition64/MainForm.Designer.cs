@@ -34,7 +34,7 @@
             this.btnWrite = new System.Windows.Forms.Button();
             this.btnFormat = new System.Windows.Forms.Button();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
-            this.toolStripProgressBar1 = new System.Windows.Forms.ToolStripProgressBar();
+            this.pbCardProgress = new System.Windows.Forms.ToolStripProgressBar();
             this.lblStatus = new System.Windows.Forms.ToolStripStatusLabel();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.openFileDialog2 = new System.Windows.Forms.OpenFileDialog();
@@ -60,7 +60,7 @@
             this.cbComPort.Name = "cbComPort";
             this.cbComPort.Size = new System.Drawing.Size(121, 21);
             this.cbComPort.TabIndex = 1;
-            this.cbComPort.Text = "COM3";
+            this.cbComPort.Text = "COM1";
             // 
             // label1
             // 
@@ -104,7 +104,7 @@
             // statusStrip1
             // 
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.toolStripProgressBar1,
+            this.pbCardProgress,
             this.lblStatus});
             this.statusStrip1.Location = new System.Drawing.Point(0, 115);
             this.statusStrip1.Name = "statusStrip1";
@@ -112,12 +112,12 @@
             this.statusStrip1.TabIndex = 6;
             this.statusStrip1.Text = "statusStrip1";
             // 
-            // toolStripProgressBar1
+            // pbCardProgress
             // 
-            this.toolStripProgressBar1.Maximum = 127;
-            this.toolStripProgressBar1.Name = "toolStripProgressBar1";
-            this.toolStripProgressBar1.Size = new System.Drawing.Size(256, 16);
-            this.toolStripProgressBar1.Step = 1;
+            this.pbCardProgress.Maximum = 127;
+            this.pbCardProgress.Name = "pbCardProgress";
+            this.pbCardProgress.Size = new System.Drawing.Size(256, 16);
+            this.pbCardProgress.Step = 1;
             // 
             // lblStatus
             // 
@@ -161,7 +161,7 @@
         private System.Windows.Forms.Button btnWrite;
         private System.Windows.Forms.Button btnFormat;
         private System.Windows.Forms.StatusStrip statusStrip1;
-        private System.Windows.Forms.ToolStripProgressBar toolStripProgressBar1;
+        private System.Windows.Forms.ToolStripProgressBar pbCardProgress;
         private System.Windows.Forms.ToolStripStatusLabel lblStatus;
         private System.Windows.Forms.OpenFileDialog openFileDialog1;
         private System.Windows.Forms.OpenFileDialog openFileDialog2;

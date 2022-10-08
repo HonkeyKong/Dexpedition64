@@ -9,3 +9,14 @@ C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.
 C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.csproj.CoreCompileInputs.cache
 C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.exe
 C:\Users\honke\source\repos\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.pdb
+\\wsl.localhost\Ubuntu\home\ryan\Code\Personal\Dexpedition64\Dexpedition64\bin\Debug\Dexpedition64.exe.config
+\\wsl.localhost\Ubuntu\home\ryan\Code\Personal\Dexpedition64\Dexpedition64\bin\Debug\Dexpedition64.exe
+\\wsl.localhost\Ubuntu\home\ryan\Code\Personal\Dexpedition64\Dexpedition64\bin\Debug\Dexpedition64.pdb
+\\wsl.localhost\Ubuntu\home\ryan\Code\Personal\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.csproj.AssemblyReference.cache
+\\wsl.localhost\Ubuntu\home\ryan\Code\Personal\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.csproj.SuggestedBindingRedirects.cache
+\\wsl.localhost\Ubuntu\home\ryan\Code\Personal\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.MainForm.resources
+\\wsl.localhost\Ubuntu\home\ryan\Code\Personal\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.Properties.Resources.resources
+\\wsl.localhost\Ubuntu\home\ryan\Code\Personal\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.csproj.GenerateResource.cache
+\\wsl.localhost\Ubuntu\home\ryan\Code\Personal\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.csproj.CoreCompileInputs.cache
+\\wsl.localhost\Ubuntu\home\ryan\Code\Personal\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.exe
+\\wsl.localhost\Ubuntu\home\ryan\Code\Personal\Dexpedition64\Dexpedition64\obj\Debug\Dexpedition64.pdb

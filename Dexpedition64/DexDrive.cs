@@ -1,10 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
+//using System.Collections.Generic;
 using System.IO.Ports;
-using System.Linq;
-using System.Text;
+/*using System.Linq;
+using System.Text;*/
 using System.Threading;
-using System.Threading.Tasks;
+//using System.Threading.Tasks;
 
 namespace Dexpedition64
 {
@@ -19,19 +19,29 @@ namespace Dexpedition64
         //Contains a firmware version of a detected device
         string FirmwareVersion = null;
 
+        string ErrorMessage = null;
+
+        string GetError()
+        {
+            return ErrorMessage;
+        }
+
         //Init DexDrive (string returned if an error happened)
-        public string StartDexDrive(string ComPortName = "COM3")
+        public bool StartDexDrive(string ComPortName = "COM3")
         {
             //Define a port to open
-            OpenedPort = new SerialPort(ComPortName, 38400, Parity.None, 8, StopBits.One);
-            OpenedPort.ReadBufferSize = 256;
+            OpenedPort = new SerialPort(ComPortName, 38400, Parity.None, 8, StopBits.One) { ReadBufferSize = 256 };
+            //OpenedPort.ReadBufferSize = 256;
 
             //Buffer for storing read data from the DexDrive
-            byte[] ReadData = null;
+            //byte[] ReadData = null;
 
             //Try to open a selected port (in case of an error return a descriptive string)
             try { OpenedPort.Open(); }
-            catch (Exception e) { return e.Message; }
+            catch (Exception e) { 
+                ErrorMessage = e.Message; 
+                return false;
+            }
 
             //Dexdrive won't respond if RTS is not toggled on/off
             OpenedPort.RtsEnable = false;
@@ -52,9 +62,9 @@ namespace Dexpedition64
             }
 
             //Check for "IAI" string
-            ReadData = ReadDataFromPort();
-            string retDev = null;
-            if (ReadData[0] != 0x49 || ReadData[1] != 0x41 || ReadData[2] != 0x49) return null;
+            byte[] ReadData = ReadDataFromPort();
+            //string retDev = null;
+            if (ReadData[0] != 0x49 || ReadData[1] != 0x41 || ReadData[2] != 0x49) return false;
 
             //Wake DexDrive up (kick it from POUT mode)
             SendDataToPort((byte)DexCommands.INIT, new byte[] { 0x10, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0xAA, 0xBB, 0xCC, 0xDD }, 50);
@@ -63,17 +73,10 @@ namespace Dexpedition64
             ReadData = ReadDataFromPort();
 
             // Check for "N64" string
-            if (ReadData[5] == 0x4E || ReadData[6] == 0x36 || ReadData[7] == 0x34)
+            if (ReadData[5] != 0x4E || ReadData[6] != 0x36 || ReadData[7] != 0x34)
             {
-                retDev = "N64";
-            }
-            else if (ReadData[5] == 0x50 || ReadData[6] == 0x53 || ReadData[7] == 0x58)
-            {
-                retDev = "PSX";
-            }
-            else
-            {
-                retDev = null;
+                ErrorMessage = "Detected device is not a N64 DexDrive.";
+                return false;
             }
 
             //Fetch the firmware version
@@ -87,7 +90,7 @@ namespace Dexpedition64
             SendDataToPort((byte)DexCommands.LIGHT, new byte[] { 1 }, 50);
 
             //Everything went well, DexDrive is ready to recieve commands
-            return retDev;
+            return true;
         }
 
         //Cleanly stop working with DexDrive
