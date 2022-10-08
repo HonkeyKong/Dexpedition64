@@ -102,7 +102,7 @@ namespace Dexpedition64
                         lblStatus.Text = "Formatting Card...";
                         string strFailed = "Writing frame failed.";
 
-                        if (!drive.WriteMemoryCardFrame(0, CardData.BuildHeader()))
+                        if (!drive.WriteMemoryCardFrame(0, Mempak.BuildHeader()))
                         {
                             lblStatus.Text = strFailed;
                             return;
@@ -111,7 +111,7 @@ namespace Dexpedition64
 
                         for (i = 1; i < 3; i++)
                         {
-                            if (!drive.WriteMemoryCardFrame(i, CardData.FormatPage()))
+                            if (!drive.WriteMemoryCardFrame(i, Mempak.FormatPage()))
                             {
                                 lblStatus.Text = strFailed;
                                 return;
