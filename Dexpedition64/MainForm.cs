@@ -198,5 +198,11 @@ namespace Dexpedition64
                 }
             }
         }
+
+        private void btnManager_Click(object sender, EventArgs e)
+        {
+            Form fm = new frmMempak();
+            fm.Show();
+        }
     }
 }

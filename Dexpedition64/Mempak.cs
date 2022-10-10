@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.Text;
 using System.Collections.Generic;
 
 namespace Dexpedition64
@@ -43,6 +45,52 @@ namespace Dexpedition64
             { 145, "ピ"}, { 146, "プ"}, { 147, "ペ"}, { 148, "ポ"}
         };
 
+        public List<string> ReadNoteTable(byte[] table)
+        {
+            List<string> notes = new List<string>();
+            //string noteCode;
+            string noteTitle = "";
+            byte[] GameCode = new byte[4];
+            byte[] GamePub = new byte[2];
+            byte[] GameTitle = new byte[16];
+            for (int i = 0; i < 16; i++)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+                    GameCode[j] = table[j + (i * 32)];
+                }
+
+                noteTitle += Encoding.Default.GetString(GameCode) + " - ";
+
+                for (int foo = 4; foo < 6; foo++)
+                {
+                    GamePub[foo-4] = table[foo + (i * 32)];
+                }
+
+                noteTitle += Encoding.Default.GetString(GamePub) + " - ";
+
+                for (int k = 16; k < 32; k++)
+                {
+                    GameTitle[k-16] = table[k + (i * 32)];
+                }
+                
+                for(int l = 0; l < 16; l++)
+                {
+                    try
+                    {
+                        noteTitle += N64Symbols[GameTitle[l]];
+                    } catch(System.Collections.Generic.KeyNotFoundException ex)
+                    {
+                        noteTitle += "";
+                    }
+                }
+                
+                notes.Add(noteTitle.ToString());
+                noteTitle = "";
+            }
+            return notes;
+        }
+        
         public static byte[] FormatPage()
         {
             byte[] openBlock = new byte[16]
@@ -74,6 +122,7 @@ namespace Dexpedition64
             Random rnd = new Random();
             int i;
 
+            // Generate a random serial number
             rnd.NextBytes(serial);
 
             for (i = 0; i < 24; i++)
@@ -86,6 +135,7 @@ namespace Dexpedition64
             IDBlock[26] = 1;
             IDBlock[27] = 0;
 
+            // Calculate the first checksum
             ushort ckSum1 = 0;
             for (i = 0; i < 28; i += 2)
             {
@@ -93,8 +143,10 @@ namespace Dexpedition64
                 ckSum1 += ckWord;
             }
 
+            // Second checksum is easy
             ushort ckSum2 = (ushort)(0xFFF2 - ckSum1);
 
+            // Write the checksums to the header
             IDBlock[28] = (byte)(ckSum1 >> 8 & 0xFF);
             IDBlock[29] = (byte)(ckSum1 & 0xFF);
             IDBlock[30] = (byte)(ckSum2 >> 8 & 0xFF);
@@ -108,14 +160,15 @@ namespace Dexpedition64
             // A useless vanity label
             byte[] IDLabel = new byte[32]
             {
-                0X20, 0X44, 0X45, 0X58, 0X50, 0X45, 0X44, 0X49, 0X54, 0X49, 0X4F, 0X4E, 0X20, 0X36, 0X34, 0X20,
-                0X2D, 0X20, 0X42, 0x59, 0x20, 0x48, 0x4F, 0x4E, 0x4B, 0x45, 0x59, 0x20, 0x4B, 0x4F, 0x4E, 0x47
+                0x44, 0x45, 0x58, 0x50, 0x45, 0x44, 0x49, 0x54, 0x49, 0x4F, 0x4E, 0x36, 0x34, 0x20, 0x56, 0x30, 
+                0x2E, 0x31, 0x20, 0x42, 0x59, 0x20, 0x48, 0x4F, 0x4E, 0x4B, 0x45, 0x59, 0x4B, 0x4F, 0x4E, 0x47
             };
 
             byte[] header = new byte[256];
             byte[] idBlock = GenerateID();
             int i;
 
+            // Loop through and write each byte
             for (i = 0; i < 32; i++)
             {
                 header[i] = IDLabel[i];
@@ -129,6 +182,84 @@ namespace Dexpedition64
             }
 
             return header;
+        }
+    }
+
+    class MPKNote
+    {
+        public string GameCode;
+        public string PubCode;
+        public string NoteTitle;
+        public string NoteExtension;
+        public short startPage;
+        public byte status;
+        
+        public MPKNote(byte[] header)
+        {
+            byte[] gameCodeRaw = new byte[4];
+            byte[] pubCodeRaw = new byte[2];
+            byte[] noteTitleRaw = new byte[16];
+            byte[] noteExtRaw = new byte[4];
+            byte[] startPageRaw = new byte[2];
+            
+            Mempak mpk = new Mempak();
+            
+            for (int i = 0; i < 4; i++)
+            {
+                gameCodeRaw[i] = header[i];
+            }
+
+            GameCode = Encoding.Default.GetString(gameCodeRaw);
+
+            for (int i = 4; i < 6; i++)
+            {
+                pubCodeRaw[i - 4] = header[i];
+            }
+
+            PubCode += Encoding.Default.GetString(pubCodeRaw);
+
+            for (int i = 6; i < 8; i++)
+            {
+                startPageRaw[i - 6] = header[i];
+            }
+
+            startPage = (short)((short)(startPageRaw[0] << 8 & 0xFF00) + (startPageRaw[1] & 0xFF));
+
+            status = header[0x08];
+
+            for(int i = 0x0C; i < 0x10; i++)
+            {
+                noteExtRaw[i - 0x0C] = header[i];
+            }
+            
+            for (int i = 16; i < 32; i++)
+            {
+                noteTitleRaw[i - 16] = header[i];
+            }
+
+            for (int i = 0; i < 4; i++)
+            {
+                try
+                {
+                    NoteExtension += mpk.N64Symbols[noteExtRaw[i]];
+                }
+                catch (System.Collections.Generic.KeyNotFoundException)
+                {
+                    NoteExtension += "";
+                }
+            }
+
+            for (int i = 0; i < 16; i++)
+            {
+                try
+                {
+                    NoteTitle += mpk.N64Symbols[noteTitleRaw[i]];
+                }
+                catch (System.Collections.Generic.KeyNotFoundException)
+                {
+                    NoteTitle += "";
+                }
+            }
         }
     }
 }

@@ -46,6 +46,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="frmMempak.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmMempak.Designer.cs">
+      <DependentUpon>frmMempak.cs</DependentUpon>
+    </Compile>
     <Compile Include="Mempak.cs" />
     <Compile Include="DexDrive.cs" />
     <Compile Include="MainForm.cs">
@@ -56,6 +62,9 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <EmbeddedResource Include="frmMempak.resx">
+      <DependentUpon>frmMempak.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
     </EmbeddedResource>
