@@ -161,7 +161,7 @@ namespace Dexpedition64
             byte[] IDLabel = new byte[32]
             {
                 0x44, 0x45, 0x58, 0x50, 0x45, 0x44, 0x49, 0x54, 0x49, 0x4F, 0x4E, 0x36, 0x34, 0x20, 0x56, 0x30, 
-                0x2E, 0x31, 0x20, 0x42, 0x59, 0x20, 0x48, 0x4F, 0x4E, 0x4B, 0x45, 0x59, 0x4B, 0x4F, 0x4E, 0x47
+                0x31, 0x20, 0x42, 0x59, 0x20, 0x48, 0x4F, 0x4E, 0x4B, 0x45, 0x59, 0x4B, 0x4F, 0x4E, 0x47, 0x00
             };
 
             byte[] header = new byte[256];
@@ -195,15 +195,17 @@ namespace Dexpedition64
         public byte Status;
         public byte[] Data;
         public int PageSize = 1;
-        
+        public List<short> Pages = new List<short>();
+
+        public byte[] gameCodeRaw = new byte[4];
+        public byte[] pubCodeRaw = new byte[2];
+        public byte[] noteTitleRaw = new byte[16];
+        public byte[] noteExtRaw = new byte[4];
+        public byte[] startPageRaw = new byte[2];
+        List<short> indexTable = new List<short>();
+
         public MPKNote(byte[] header, byte[] index)
         {
-            byte[] gameCodeRaw = new byte[4];
-            byte[] pubCodeRaw = new byte[2];
-            byte[] noteTitleRaw = new byte[16];
-            byte[] noteExtRaw = new byte[4];
-            byte[] startPageRaw = new byte[2];
-            List<short> indexTable = new List<short>();
             
             Mempak mpk = new Mempak();
 
@@ -271,9 +273,11 @@ namespace Dexpedition64
 
             short startPage;
             startPage = StartPage;
-            while (indexTable[startPage] != 0x0001)
+            Pages.Add(startPage);
+            if (indexTable[startPage] != 0x0001)
             {
                 startPage = indexTable[startPage];
+                Pages.Add(startPage);
                 PageSize++;
             }
         }

@@ -31,8 +31,8 @@ namespace Dexpedition64
             SaveFileDialog saveFile = new SaveFileDialog();
             saveFile.Filter = "Memory Pak files (*.mpk)|*.mpk|All files (*.*)|*.*";
             saveFile.FilterIndex = 0;
-            saveFile.ShowDialog();
-            if (saveFile.FileName != "")
+
+            if (saveFile.ShowDialog() == DialogResult.OK)
             {
                 using (FileStream fs = File.OpenWrite(saveFile.FileName))
                 {
@@ -156,8 +156,8 @@ namespace Dexpedition64
             OpenFileDialog writeFile = new OpenFileDialog();
             writeFile.Filter = "Memory Pak files (*.mpk)|*.mpk|All files (*.*)|*.*";
             writeFile.FilterIndex = 0;
-            writeFile.ShowDialog();
-            if (writeFile.FileName != "")
+            
+            if (writeFile.ShowDialog() == DialogResult.OK)
             {
                 using (FileStream fs = File.OpenRead(writeFile.FileName))
                 {

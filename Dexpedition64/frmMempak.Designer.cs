@@ -39,6 +39,7 @@
             this.lblCkSum1 = new System.Windows.Forms.Label();
             this.lblCkSum2 = new System.Windows.Forms.Label();
             this.lblLabel = new System.Windows.Forms.Label();
+            this.lblRealCksum = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // lstNotes
@@ -118,7 +119,7 @@
             // lblCkSum1
             // 
             this.lblCkSum1.AutoSize = true;
-            this.lblCkSum1.Location = new System.Drawing.Point(442, 80);
+            this.lblCkSum1.Location = new System.Drawing.Point(442, 54);
             this.lblCkSum1.Name = "lblCkSum1";
             this.lblCkSum1.Size = new System.Drawing.Size(0, 13);
             this.lblCkSum1.TabIndex = 4;
@@ -140,6 +141,14 @@
             this.lblLabel.TabIndex = 5;
             this.lblLabel.Text = "No Memory Pak Loaded.";
             // 
+            // lblRealCksum
+            // 
+            this.lblRealCksum.AutoSize = true;
+            this.lblRealCksum.Location = new System.Drawing.Point(442, 81);
+            this.lblRealCksum.Name = "lblRealCksum";
+            this.lblRealCksum.Size = new System.Drawing.Size(0, 13);
+            this.lblRealCksum.TabIndex = 4;
+            // 
             // frmMempak
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -147,6 +156,7 @@
             this.ClientSize = new System.Drawing.Size(548, 355);
             this.Controls.Add(this.lblLabel);
             this.Controls.Add(this.lblCkSum2);
+            this.Controls.Add(this.lblRealCksum);
             this.Controls.Add(this.lblCkSum1);
             this.Controls.Add(this.lblMPKStatus);
             this.Controls.Add(this.btnDelete);
@@ -178,5 +188,6 @@
         private System.Windows.Forms.Label lblCkSum1;
         private System.Windows.Forms.Label lblCkSum2;
         private System.Windows.Forms.Label lblLabel;
+        private System.Windows.Forms.Label lblRealCksum;
     }
 }

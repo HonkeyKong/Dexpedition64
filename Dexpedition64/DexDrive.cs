@@ -23,14 +23,10 @@ namespace Dexpedition64
         }
 
         //Init DexDrive (string returned if an error happened)
-        public bool StartDexDrive(string ComPortName = "COM3")
+        public bool StartDexDrive(string ComPortName)
         {
             //Define a port to open
             OpenedPort = new SerialPort(ComPortName, 38400, Parity.None, 8, StopBits.One) { ReadBufferSize = 256 };
-            //OpenedPort.ReadBufferSize = 256;
-
-            //Buffer for storing read data from the DexDrive
-            //byte[] ReadData = null;
 
             //Try to open a selected port (in case of an error return a descriptive string)
             try { OpenedPort.Open(); }
@@ -59,7 +55,6 @@ namespace Dexpedition64
 
             //Check for "IAI" string
             byte[] ReadData = ReadDataFromPort();
-            //string retDev = null;
             if (ReadData[0] != 0x49 || ReadData[1] != 0x41 || ReadData[2] != 0x49) return false;
 
             //Wake DexDrive up (kick it from POUT mode)
@@ -130,11 +125,7 @@ namespace Dexpedition64
         //Read a specified frame of a Memory Card
         public byte[] ReadMemoryCardFrame(ushort FrameNumber)
         {
-            //Buffer for storing read data from the DexDrive
-            byte[] ReadData = null;
-
-            //128 byte frame data from a Memory Card
-            //byte[] ReturnDataBuffer = new byte[128]; 
+            //256 byte frame data from a Memory Card
             byte[] ReturnDataBuffer = new byte[256];
 
             int DelayCounter = 0;
@@ -154,7 +145,7 @@ namespace Dexpedition64
             }
 
             //Read Memory Card data
-            ReadData = ReadDataFromPort();
+            byte[] ReadData = ReadDataFromPort();
 
             //Copy received data (filter IAI prefix)
             Array.Copy(ReadData, 4, ReturnDataBuffer, 0, 256);
@@ -168,7 +159,7 @@ namespace Dexpedition64
             //Return null if there is a checksum missmatch
             if (XorData != ReadData[260])
             {
-                Console.WriteLine("Data Mismatch!");
+                ErrorMessage = "Data Mismatch!";
                 return null;
             }
 
@@ -220,7 +211,7 @@ namespace Dexpedition64
 
             if (ReadData[0x03] == (byte)DexResponses.NOCARD)
             {
-                Console.WriteLine(" No memory card inserted.");
+                ErrorMessage = " No memory card inserted.";
                 return false;
             }
 
