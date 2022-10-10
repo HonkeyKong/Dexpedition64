@@ -191,18 +191,26 @@ namespace Dexpedition64
         public string PubCode;
         public string NoteTitle;
         public string NoteExtension;
-        public short startPage;
-        public byte status;
+        public short StartPage;
+        public byte Status;
+        public byte[] Data;
+        public int PageSize = 1;
         
-        public MPKNote(byte[] header)
+        public MPKNote(byte[] header, byte[] index)
         {
             byte[] gameCodeRaw = new byte[4];
             byte[] pubCodeRaw = new byte[2];
             byte[] noteTitleRaw = new byte[16];
             byte[] noteExtRaw = new byte[4];
             byte[] startPageRaw = new byte[2];
+            List<short> indexTable = new List<short>();
             
             Mempak mpk = new Mempak();
+
+            for(int n = 0; n < index.Length; n += 2)
+            {
+                indexTable.Add((short)((short)(index[n] << 8 & 0xFF00) + (index[n+1] & 0xFF)));
+            }
             
             for (int i = 0; i < 4; i++)
             {
@@ -223,9 +231,9 @@ namespace Dexpedition64
                 startPageRaw[i - 6] = header[i];
             }
 
-            startPage = (short)((short)(startPageRaw[0] << 8 & 0xFF00) + (startPageRaw[1] & 0xFF));
+            StartPage = (short)((short)(startPageRaw[0] << 8 & 0xFF00) + (startPageRaw[1] & 0xFF));
 
-            status = header[0x08];
+            Status = header[0x08];
 
             for(int i = 0x0C; i < 0x10; i++)
             {
@@ -259,6 +267,14 @@ namespace Dexpedition64
                 {
                     NoteTitle += "";
                 }
+            }
+
+            short startPage;
+            startPage = StartPage;
+            while (indexTable[startPage] != 0x0001)
+            {
+                startPage = indexTable[startPage];
+                PageSize++;
             }
         }
     }

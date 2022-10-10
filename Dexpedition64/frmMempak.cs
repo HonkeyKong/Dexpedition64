@@ -18,6 +18,9 @@ namespace Dexpedition64
             InitializeComponent();
         }
 
+        private bool fileLoaded = false;
+        List<MPKNote> mPKNotes = new List<MPKNote>();
+
         private void btnLoad_Click(object sender, EventArgs e)
         {
             /* Note: Eventually all this crap will be broken out
@@ -33,6 +36,7 @@ namespace Dexpedition64
             {
                 using (FileStream fs = File.OpenRead(mpkFile.FileName))
                 {
+                    fileLoaded = true;
                     BinaryReader br = new BinaryReader(fs);
                     Mempak mpk = new Mempak();
                     
@@ -67,10 +71,9 @@ namespace Dexpedition64
                     byte[] indexTable = br.ReadBytes(512);
 
                     // Read the Note Table
-                    List<MPKNote> mPKNotes = new List<MPKNote>();
                     for(int i = 0; i < 16; i++)
                     {
-                        mPKNotes.Add(new MPKNote(br.ReadBytes(32)));
+                        mPKNotes.Add(new MPKNote(br.ReadBytes(32), indexTable));
                     }
 
                     // Clear the listbox
@@ -82,18 +85,8 @@ namespace Dexpedition64
                         string NoteEntry = "";
                         NoteEntry += note.GameCode + " - " + note.PubCode;
                         NoteEntry += " - " + note.NoteTitle + "." + note.NoteExtension;
-                        NoteEntry += " - Page " + note.startPage.ToString();
-                        
-                        // Seek to page in index table.
-                        int numPages = 0;
-                        int startPage = note.startPage;
-                        while (indexTable[startPage] != 0x01)
-                        {
-                            startPage++;
-                            if(indexTable[startPage] != 0x00) numPages++;
-                        }
-                        
-                        NoteEntry += ", " + numPages + (numPages == 1? " page." : " pages.");
+                        NoteEntry += " - Page " + note.StartPage.ToString();
+                        NoteEntry += ", " + note.PageSize + (note.PageSize == 1? " page." : " pages.");
 
                         lstNotes.Items.Add(NoteEntry);
                     }
@@ -104,6 +97,26 @@ namespace Dexpedition64
         private void frmMempak_Load(object sender, EventArgs e)
         {
 
+        }
+
+        private void btnExport_Click(object sender, EventArgs e)
+        {
+            if(!fileLoaded)   
+            {
+                MessageBox.Show("Load a file first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            if(lstNotes.SelectedItems.Count == 0)
+            {
+                MessageBox.Show("Select a note first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            SaveFileDialog saveFileDialog = new SaveFileDialog();
+            saveFileDialog.Filter = "N64 Save Notes (*.note)|*.note|All files (*.*)|*.*";
+            saveFileDialog.FilterIndex = 0;
+            saveFileDialog.FileName = mPKNotes[lstNotes.SelectedIndex].NoteTitle + ".note";
+            saveFileDialog.ShowDialog();
         }
     }
 }
