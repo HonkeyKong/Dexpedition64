@@ -42,6 +42,8 @@
             this.btnSave = new System.Windows.Forms.Button();
             this.btnReadCard = new System.Windows.Forms.Button();
             this.btnWriteCard = new System.Windows.Forms.Button();
+            this.cbComPort = new System.Windows.Forms.ComboBox();
+            this.label1 = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // lstNotes
@@ -171,12 +173,46 @@
             this.btnWriteCard.TabIndex = 9;
             this.btnWriteCard.Text = "Write Card";
             this.btnWriteCard.UseVisualStyleBackColor = true;
+            this.btnWriteCard.Click += new System.EventHandler(this.btnWriteCard_Click);
+            // 
+            // cbComPort
+            // 
+            this.cbComPort.FormattingEnabled = true;
+            this.cbComPort.Items.AddRange(new object[] {
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12"});
+            this.cbComPort.Location = new System.Drawing.Point(470, 316);
+            this.cbComPort.Name = "cbComPort";
+            this.cbComPort.Size = new System.Drawing.Size(41, 21);
+            this.cbComPort.TabIndex = 11;
+            this.cbComPort.Text = "1";
+            // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(417, 319);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(53, 13);
+            this.label1.TabIndex = 12;
+            this.label1.Text = "COM Port";
             // 
             // frmMempak
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(522, 355);
+            this.Controls.Add(this.label1);
+            this.Controls.Add(this.cbComPort);
             this.Controls.Add(this.btnWriteCard);
             this.Controls.Add(this.btnReadCard);
             this.Controls.Add(this.btnSave);
@@ -216,5 +252,7 @@
         private System.Windows.Forms.Button btnSave;
         private System.Windows.Forms.Button btnReadCard;
         private System.Windows.Forms.Button btnWriteCard;
+        private System.Windows.Forms.ComboBox cbComPort;
+        private System.Windows.Forms.Label label1;
     }
 }

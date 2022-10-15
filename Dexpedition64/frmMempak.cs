@@ -24,25 +24,24 @@ namespace Dexpedition64
 
         private void btnLoad_Click(object sender, EventArgs e)
         {
-            /* Note: Eventually all this crap will be broken out
-             * into individual functions, in order to make it
-             * possible to read the tables from a memory card 
-             * without dumping it to disk first.                */
-            OpenFileDialog mpkFile = new OpenFileDialog();
-            mpkFile.Filter = "Memory Pak files (*.mpk)|*.mpk|All files (*.*)|*.*";
-            mpkFile.FilterIndex = 0;
+            OpenFileDialog mpkFile = new OpenFileDialog
+            {
+                Filter = "Memory Pak files (*.mpk)|*.mpk|All files (*.*)|*.*",
+                FilterIndex = 0
+            };
 
             if(mpkFile.ShowDialog() == DialogResult.OK)
             {
+                
+                // Clear the lists
                 lstNotes.Items.Clear();
                 mPKNotes.Clear();
+
                 mpk = new Mempak(mpkFile.FileName, mPKNotes);
 
+                // Print the label and serial
                 lblLabel.Text = mpk.Label;
                 lblSerial.Text = mpk.SerialNumber;
-
-                // Clear the listbox
-                lstNotes.Items.Clear();
 
                 // Populate the listbox with current data
                 foreach (MPKNote note in mPKNotes)
@@ -55,8 +54,10 @@ namespace Dexpedition64
 
                     lstNotes.Items.Add(NoteEntry);
                 }
+
                 fileLoaded = true;
                 mpk.Type = Mempak.CardType.CARD_VIRTUAL;
+                
                 if(mpk.ErrorCode != 0)
                 {
                     MessageBox.Show("Error: " + mpk.ErrorStr, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -77,21 +78,31 @@ namespace Dexpedition64
                 MessageBox.Show("Load something first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
+            
             if (lstNotes.SelectedItems.Count == 0)
             {
                 MessageBox.Show("Select a note first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
+            
             MPKNote currentNote = mPKNotes[lstNotes.SelectedIndex];
 
-            SaveFileDialog saveFileDialog = new SaveFileDialog();
-            saveFileDialog.Filter = "N64 Save Notes (*.note)|*.note|All files (*.*)|*.*";
-            saveFileDialog.FilterIndex = 0;
-            saveFileDialog.FileName = currentNote.NoteTitle + ".note";
+            SaveFileDialog saveFileDialog = new SaveFileDialog
+            {
+                Filter = "N64 Save Notes (*.note)|*.note|All files (*.*)|*.*",
+                FilterIndex = 0,
+                FileName = currentNote.NoteExtension != "" ? currentNote.NoteTitle + "." + currentNote.NoteExtension : currentNote.NoteTitle + ".note"
+            };
 
             if (saveFileDialog.ShowDialog() == DialogResult.OK)
             {
-                if (mpk.Type == Mempak.CardType.CARD_PHYSICAL) currentNote.Data = mpk.ReadNoteFromCard(currentNote);
+                try
+                {
+                    if (mpk.Type == Mempak.CardType.CARD_PHYSICAL) currentNote.Data = mpk.ReadNoteFromCard(currentNote, int.Parse(cbComPort.Text));
+                } catch(FormatException) {
+                    MessageBox.Show("COM Port should be a number.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
                 mpk.SaveNote(currentNote, saveFileDialog.FileName);
             }
             if(mpk.ErrorCode != 0)
@@ -125,12 +136,29 @@ namespace Dexpedition64
 
         private void btnReadCard_Click(object sender, EventArgs e)
         {
-            try
-            {
+            //try
+            //{
                 mPKNotes.Clear();
-                mpk = new Mempak(1, mPKNotes);
-                lblLabel.Text = mpk.Label;
+                try
+                {
+                    mpk = new Mempak(int.Parse(cbComPort.Text), mPKNotes);
+                }
+                catch (FormatException)
+                {
+                    mpk.ErrorStr = "COM Port should be a number.";
+                    mpk.ErrorCode = 1;
+                    return;
+                } catch (ArgumentNullException)
+                {
+                    mpk.ErrorStr = "COM Port should contain a value.";
+                    mpk.ErrorCode = 6;
+                    return;
+                }
+                
+                lblLabel.Text = "Label: " + mpk.Label;
                 lstNotes.Items.Clear();
+
+                // Populate the listbox
                 foreach (MPKNote note in mPKNotes)
                 {
                     string NoteEntry = "";
@@ -141,17 +169,26 @@ namespace Dexpedition64
 
                     lstNotes.Items.Add(NoteEntry);
                 }
-                if(mpk.ErrorStr != "") MessageBox.Show(mpk.ErrorStr);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error: " + ex.Message +
-                    "\nAre you sure your DexDrive is plugged in?" +
-                    "\nTry disconnecting and reconnecting the power.",
-                    "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+
+                // If there was an error, show it.
+                if(mpk.ErrorCode != 0 ) MessageBox.Show("Something happened. " + mpk.ErrorStr, "Error", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            //}
+            //catch (Exception ex)
+            //{
+            //    MessageBox.Show("Error: " + ex.Message +
+            //        "\nAre you sure your DexDrive is plugged in?" +
+            //        "\nTry disconnecting and reconnecting the power.",
+            //        "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            //    return;
+            //}
             fileLoaded = true;
             mpk.Type = Mempak.CardType.CARD_PHYSICAL;
+        }
+
+        private void btnWriteCard_Click(object sender, EventArgs e)
+        {
+            MainForm mfrm = new MainForm();
+            mfrm.Show();
         }
     }
 }
