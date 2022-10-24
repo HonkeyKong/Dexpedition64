@@ -42,6 +42,9 @@ namespace Dexpedition64
                 // Print the label and serial
                 lblLabel.Text = mpk.Label;
                 lblSerial.Text = mpk.SerialNumber;
+                lblCkSum1.Text = mpk.CheckSum1;
+                lblCkSum2.Text = mpk.CheckSum2;
+                lblRealCksum.Text = mpk.RealCheckSum;
 
                 // Populate the listbox with current data
                 foreach (MPKNote note in mPKNotes)
@@ -121,12 +124,42 @@ namespace Dexpedition64
             // Delete the selected note entry from the note table
             // Mark each used page as free (0x03) on the index table
 
-            MessageBox.Show("Not implemented yet.");
+            try
+            {
+                lstNotes.Items.Remove(lstNotes.Items[lstNotes.SelectedIndex]);
+                mpk.DeleteNote(lstNotes.SelectedIndex, mPKNotes, mpk.IndexTable);
+            } 
+            catch(ArgumentOutOfRangeException)
+            {
+                MessageBox.Show("Please select a note first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            lstNotes.Refresh();
         }
 
         private void btnSave_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("Not implemented yet.");
+            SaveFileDialog saveFileDialog = new SaveFileDialog
+            {
+                Filter = "N64 Memory Paks (*.mpk)|*.mpk|All files (*.*)|*.*",
+                FilterIndex = 0,
+            };
+
+            if (saveFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                if(fileLoaded)
+                {
+                    mpk.SaveMPK(saveFileDialog.FileName, mpk, mPKNotes);
+                }
+                else
+                {
+                    MessageBox.Show("Load a Memory Pak first.");
+                }
+            }
+            if(mpk.ErrorCode != 0)
+            {
+                MessageBox.Show("Error: " + mpk.ErrorStr, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
         }
 
         private void btnNew_Click(object sender, EventArgs e)
@@ -136,8 +169,8 @@ namespace Dexpedition64
 
         private void btnReadCard_Click(object sender, EventArgs e)
         {
-            //try
-            //{
+            try
+            {
                 mPKNotes.Clear();
                 try
                 {
@@ -171,17 +204,17 @@ namespace Dexpedition64
                 }
 
                 // If there was an error, show it.
-                if(mpk.ErrorCode != 0 ) MessageBox.Show("Something happened. " + mpk.ErrorStr, "Error", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            //}
-            //catch (Exception ex)
-            //{
-            //    MessageBox.Show("Error: " + ex.Message +
-            //        "\nAre you sure your DexDrive is plugged in?" +
-            //        "\nTry disconnecting and reconnecting the power.",
-            //        "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            //    return;
-            //}
-            fileLoaded = true;
+                if(mpk.ErrorCode != 0 ) MessageBox.Show("Error: " + mpk.ErrorStr, "Error", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error: " + ex.Message +
+                    "\nAre you sure your DexDrive is plugged in?" +
+                    "\nTry disconnecting and reconnecting the power.",
+                    "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+    fileLoaded = true;
             mpk.Type = Mempak.CardType.CARD_PHYSICAL;
         }
 

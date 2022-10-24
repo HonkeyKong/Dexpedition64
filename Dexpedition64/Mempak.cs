@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Collections.Generic;
+using System.Runtime.Serialization;
 
 namespace Dexpedition64
 {
@@ -45,6 +46,11 @@ namespace Dexpedition64
             { 141, "ブ"}, { 142, "ベ"}, { 143, "ボ"}, { 144, "パ"},
             { 145, "ピ"}, { 146, "プ"}, { 147, "ペ"}, { 148, "ポ"}
         };
+
+        public Int16 ByteSwap(Int16 i)
+        {
+            return (Int16)(((i << 8) & 0xFF00) + ((i >> 8) & 0xFF));
+        }
 
         public List<string> ReadNoteTable(byte[] table)
         {
@@ -155,21 +161,20 @@ namespace Dexpedition64
             return IDBlock;
         }
 
+        // A useless vanity label
+        public static readonly byte[] IDLabel = new byte[32]
+        {
+                0x44, 0x45, 0x58, 0x50, 0x45, 0x44, 0x49, 0x54, 0x49, 0x4F, 0x4E, 0x36, 0x34, 0x20, 0x56, 0x30,
+                0x31, 0x20, 0x42, 0x59, 0x20, 0x48, 0x4F, 0x4E, 0x4B, 0x45, 0x59, 0x4B, 0x4F, 0x4E, 0x47, 0x00
+        };
+
         public static byte[] BuildHeader()
         {
-            // A useless vanity label
-            byte[] IDLabel = new byte[32]
-            {
-                0x44, 0x45, 0x58, 0x50, 0x45, 0x44, 0x49, 0x54, 0x49, 0x4F, 0x4E, 0x36, 0x34, 0x20, 0x56, 0x30, 
-                0x31, 0x20, 0x42, 0x59, 0x20, 0x48, 0x4F, 0x4E, 0x4B, 0x45, 0x59, 0x4B, 0x4F, 0x4E, 0x47, 0x00
-            };
-
             byte[] header = new byte[256];
             byte[] idBlock = GenerateID();
-            int i;
 
             // Loop through and write each byte
-            for (i = 0; i < 32; i++)
+            for (int i = 0; i < 32; i++)
             {
                 header[i] = IDLabel[i];
                 header[i + 0x20] = idBlock[i];
@@ -184,6 +189,24 @@ namespace Dexpedition64
             return header;
         }
 
+        public static byte[] BuildHeader(Mempak mpk)
+        {
+            // Insert useless vanity label
+            byte[] header = BuildHeader(); 
+            
+            for(int i = 0; i < 32; i++)
+            {
+                header[i] = IDLabel[i];
+            }
+            for(int i = 32; i < 256; i++)
+            {
+                header[i] = mpk.Header[i];
+            }
+
+            // Return modified header.
+            return header;
+        }
+
         public string Label;
         public string CheckSum1;
         public string CheckSum2;
@@ -191,14 +214,12 @@ namespace Dexpedition64
         public string SerialNumber;
         public int ErrorCode = 0;
         public string ErrorStr = "";
+        public List<short> IndexTable = new List<short>();
+        public byte[] Header = new byte[256];
+        public byte[] Data = new byte[32768];  
 
         public enum CardType { CARD_NONE, CARD_VIRTUAL, CARD_PHYSICAL };
         public CardType Type = CardType.CARD_NONE;
-
-        public string ShowError()
-        {
-            return this.ErrorStr;
-        }
 
         private ushort CalculateChecksum(byte[] serial)
         {
@@ -208,7 +229,7 @@ namespace Dexpedition64
                 ushort ckWord = (ushort)((serial[i] << 8) + (serial[i + 1]));
                 checksum += ckWord;
             }
-
+            
             return checksum;
         }
 
@@ -218,10 +239,15 @@ namespace Dexpedition64
             using (FileStream fs = File.OpenRead(fileName))
             {
                 BinaryReader br = new BinaryReader(fs);
-                byte[] data = br.ReadBytes((int)fs.Length);
+                Data = br.ReadBytes((int)fs.Length);
+
+                // Copy the header.
+                for(int i = 0; i < 256; i++)
+                {
+                    Header[i] = Data[i];
+                }
 
                 fs.Seek(0, SeekOrigin.Begin);
-                //BinaryReader br = new BinaryReader(fs);
 
                 // Read the label
                 byte[] cardLabel = br.ReadBytes(32);
@@ -242,12 +268,12 @@ namespace Dexpedition64
 
                 // Calculate the actual checksum
                 ushort realCkSum = CalculateChecksum(serial);
-              
+                
                 // The result should be big-endian. Swap it.
                 byte[] swapSum = new byte[2];
                 swapSum[1] = (byte)(realCkSum >> 8 & 0xFF);
                 swapSum[0] = (byte)(realCkSum & 0xFF);
-                this.RealCheckSum = String.Join("", swapSum.Select(hex => String.Format("{0:X2}", hex)));
+                this.RealCheckSum = ByteSwap((short)realCkSum).ToString("X2");
 
                 /* 32 bytes of null, then two more ID blocks.
                  * 32 more nulls, one more ID block, 32 null,
@@ -260,13 +286,17 @@ namespace Dexpedition64
                 this.SerialNumber = string.Join(":", serial.Select(hex => string.Format("{0:X2}", hex)));
 
                 // Read the Index Table
-                //byte[] indexTable = br.ReadBytes(512);
                 MemoryStream indexTable = new MemoryStream(br.ReadBytes(512));
+                BinaryReader br2 = new BinaryReader(indexTable);
+                for (int i = 0; i < 512; i += 2)
+                {
+                    IndexTable.Add(ByteSwap(br2.ReadInt16()));
+                }
+                
                 byte ckByte = 0;
                 
                 for (int i = 0x0A; i < 256; i++)
                 {
-                    //ckByte += indexTable[i];
                     ckByte += (byte)indexTable.ReadByte();
                 }
 
@@ -274,10 +304,8 @@ namespace Dexpedition64
                 for (int i = 0; i < 16; i++)
                 {
                     MemoryStream header = new MemoryStream(br.ReadBytes(32));
-                    //notes.Add(new MPKNote(br.ReadBytes(32), indexTable));
                     notes.Add(new MPKNote(header, indexTable));
                 }
-
 
                 // Copy the note.
                 foreach (MPKNote note in notes)
@@ -292,8 +320,7 @@ namespace Dexpedition64
                         {
                             try
                             {
-                                fs.Seek(0, SeekOrigin.Begin);
-                                fs.Seek((page * 0x100), SeekOrigin.Current);
+                                fs.Seek((page * 0x100), SeekOrigin.Begin);
                                 note.Data.Write(br.ReadBytes(256), 0, 256);
                             }
                             catch (System.IO.EndOfStreamException) {
@@ -340,6 +367,12 @@ namespace Dexpedition64
                     drive.ReadMemoryCardFrame(3).ToArray().Concat(
                         drive.ReadMemoryCardFrame(4)).ToArray()
                         );
+                BinaryReader br = new BinaryReader(indexTable);
+                
+                for(int i = 0; i < 512; i += 2)
+                {
+                    IndexTable.Add(ByteSwap(br.ReadInt16()));
+                }
 
                 for (int i = 1; i < 16; i++)
                 {
@@ -421,6 +454,93 @@ namespace Dexpedition64
                 fs.Close();
             }
         }
+
+        public void DeleteNote(int index, List<MPKNote> notes, List<short> indexTable)
+        {
+            List<short> notePages = new List<short>();
+            short pageIndex = notes[index].StartPage;
+            while (pageIndex != 1)
+            {
+                if(pageIndex != 0) notePages.Add(pageIndex);
+                pageIndex = indexTable[pageIndex];
+            }
+
+            foreach(short note in notePages)
+            {
+                indexTable[note] = 0x03;
+            }
+
+            //notes.Remove(notes[index]);
+            notes.RemoveAt(index);
+
+            // Calculate new checksum for index table
+            byte ckByte = 0;
+            
+            for(int i = 10; i < 256; i++)
+            {
+                ckByte += (byte)indexTable[i];
+            }
+
+            // Set the new checksum.
+            indexTable[1] = ckByte;
+
+        }
+
+        public void SaveMPK(string fileName, Mempak mpk, List<MPKNote> notes)
+        {
+            using(FileStream fs = new FileStream(fileName, FileMode.Create))
+            {
+                // Write the header
+                byte[] header = BuildHeader(mpk);
+                fs.Write(header, 0, header.Length);
+
+                // Write the Index Table
+                fs.Seek(0x100, SeekOrigin.Begin);
+                foreach(short node in mpk.IndexTable)
+                {
+                    fs.Write(new byte[] { (byte)((node >> 8) & 0xFF) }, 0, 1);
+                    fs.Write(new byte[] { (byte)(node & 0xFF) }, 0, 1);
+                }
+
+                // Write note table
+                foreach (MPKNote note in notes)
+                {
+                    // Game Code
+                    fs.Write(note.gameCodeRaw, 0, note.gameCodeRaw.Length);
+                    // Publisher Code
+                    fs.Write(note.pubCodeRaw, 0, note.pubCodeRaw.Length);
+                    // Start Page
+                    fs.Write(new byte[] { (byte)((note.StartPage >> 8) & 0xFF), (byte)(note.StartPage & 0xFF) }, 0, 2);
+                    // Status
+                    fs.Write(new byte[] { note.Status }, 0, 1);
+                    // Reserved/Data Sum (Three zeroes)
+                    fs.Write(new byte[] { 0x00, 0x00, 0x00 }, 0, 3);
+                    // File Extension
+                    fs.Write(note.noteExtRaw, 0, note.noteExtRaw.Length);
+                    // File Name
+                    fs.Write(note.noteTitleRaw, 0, note.noteTitleRaw.Length);
+                }
+
+                // Compensate for < 16 notes by zero filling.
+                if (notes.Count < 16)
+                {
+                    for (int i = 0; i < 16 - notes.Count; i++)
+                    {
+                        for (int j = 0; j < 32; j++)
+                        {
+                            fs.Write(new byte[] { 0x00 }, 0, 1);
+                        }
+                    }
+                }
+
+                // Write card data.
+                for(int i = 1280; i < 32768; i++)
+                {
+                    fs.Write(new byte[] { mpk.Data[i] }, 0, 1);
+                }
+                fs.Close();
+            }
+        }
     }
 
     class MPKNote
@@ -445,7 +565,7 @@ namespace Dexpedition64
 
         public Int16 ByteSwap(Int16 i)
         {
-            return (Int16)((i << 8) + (i >> 8));
+            return (Int16)(((i << 8) & 0xFF00) + ((i >> 8) & 0xFF));
         }
 
 
@@ -470,6 +590,7 @@ namespace Dexpedition64
             for (int n = 0; n < 128; n++)
             {
                 indexTable.Add(ByteSwap(ir.ReadInt16()));
+                //indexTable.Add(ir.ReadInt16());
             }
             
             // Read the Game Code
