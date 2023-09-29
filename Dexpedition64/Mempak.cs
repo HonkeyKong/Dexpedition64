@@ -193,12 +193,14 @@ namespace Dexpedition64
             {
                 header[i] = IDLabel[i];
                 header[i + 0x20] = idBlock[i];
-                header[i + 0x40] = 0x00;
+                //header[i + 0x40] = 0x00;
+                header[i + 0x40] = IDLabel[i];
                 header[i + 0x60] = idBlock[i];
                 header[i + 0x80] = idBlock[i];
                 header[i + 0xA0] = 0x00;
                 header[i + 0xC0] = idBlock[i];
-                header[i + 0xE0] = 0x00;
+                //header[i + 0xE0] = 0x00;
+                header[i + 0xE0] = IDLabel[i];
             }
 
             return header;
@@ -206,13 +208,32 @@ namespace Dexpedition64
 
         public static byte[] BuildHeader(Mempak mpk)
         {
+            bool backupFound = false;
             // Insert useless vanity label
-            byte[] header = BuildHeader(); 
-            
+            byte[] header = BuildHeader();
+
+            short labelOffset = 0;
+
+            if (mpk.Header[0] == 0x00)
+            {
+                // Check for backup of card label at 0x40
+                if (mpk.Header[0x40] != 0x00) {
+                    labelOffset = 0x40;
+                    backupFound = true;
+                }
+                // Check for other backup at 0xE0
+                if ((mpk.Header[0xE0] != 0x00) && (!backupFound)) {
+                    labelOffset = 0xE0;
+                    backupFound = true;
+                }
+            }
+
             for(int i = 0; i < 32; i++)
             {
-                header[i] = IDLabel[i];
+                if ((labelOffset == 0) || ((labelOffset != 0) && (!backupFound))) header[i] = mpk.Header[i];
+                else header[i] = header[labelOffset + i];
             }
+
             for(int i = 32; i < 256; i++)
             {
                 header[i] = mpk.Header[i];
@@ -227,8 +248,8 @@ namespace Dexpedition64
         public string CheckSum2;
         public string RealCheckSum;
         public string SerialNumber;
-        public int ErrorCode = 0;
         public int firstFreePage = 5;
+        public int ErrorCode = 0;
         public string ErrorStr = "";
         public List<short> IndexTable = new List<short>();
         public byte[] Header = new byte[256];
@@ -260,28 +281,10 @@ namespace Dexpedition64
 
             int sizeInPages = src.Length / PageSize;
             updateIndexTable(firstFreePage, (short)sizeInPages);
-            //for (int i = firstFreePage; i < (firstFreePage + sizeInPages); i++) pageAllocated[i] = true;
-
+            
             // Mark the first free page after the data.
             firstFreePage += (int)sizeInPages;
         }
-
-        /*private void writeMPKData(byte[] src, int pageNum)
-        {
-            // Search for free pages
-            int offset = PageSize * pageNum; // Offset of the selected page in the card.
-
-            for(int i = 0; i < src.Length; i++)
-            {
-                this.Data[offset + i] = src[i];
-            }
-
-            short sizeInPages = (short)(src.Length / PageSize);
-
-            if(pageNum > 4) updateIndexTable(pageNum, (short)sizeInPages);
-                    
-            //for (int i = pageNum; i < (pageNum + sizeInPages); i++) pageAllocated[i] = true;                    
-        }*/
 
         // This version simply updates the check byte.
         private void updateIndexTable()
@@ -305,7 +308,6 @@ namespace Dexpedition64
                 for (int i = pageNum; i < (pageNum + sizeinPages); i++)
                 {
                     if (pageCount < sizeinPages) this.IndexTable[i] = (short)(i + 1); else this.IndexTable[i] = 1;
-                    //this.pageAllocated[i] = true;
                     pageCount++;
                 }
             } else this.IndexTable[pageNum] = 1;
@@ -467,6 +469,8 @@ namespace Dexpedition64
 
             try
             {
+                drive.ReadMemoryCardFrame(5);
+                drive.ReadMemoryCardFrame(5);
                 MemoryStream page = new MemoryStream(drive.ReadMemoryCardFrame(0));
                 BinaryReader pr = new BinaryReader(page);
 
@@ -544,11 +548,12 @@ namespace Dexpedition64
             BinaryWriter bw = new BinaryWriter(data);
             if (drive.StartDexDrive("COM" + comPort))
             {
-                // Read the first page and chuck it, for testing purposes.
+                // Read two pages back. This should be OK since we're only
+                // reading notes, so the furthest it should go back is 3.
+                drive.ReadMemoryCardFrame((ushort)(note.StartPage - 2));
+                drive.ReadMemoryCardFrame((ushort)(note.StartPage - 1));
                 foreach (short page in note.Pages)
                 {
-                    //byte[] cardPage = drive.ReadMemoryCardFrame((ushort)page);
-                    //bw.Write(cardPage);
                     bw.Write(drive.ReadMemoryCardFrame((ushort)page));
                 }
                 drive.StopDexDrive();
@@ -611,24 +616,17 @@ namespace Dexpedition64
                     note.noteHeader[noteStartPage] = (byte)(firstFreePage >> 8 & 0xFF); // Shift the MSB to the right
                     note.noteHeader[noteStartPage+1] = (byte)(firstFreePage & 0xFF); // Mask out the MSB, so only the LSB goes in.
 
-                    //this.noteTable.Add(note.noteHeader);
-
-                    //note.noteData = reader.ReadBytes((int)remainingData);
                     note.Data = reader.ReadBytes((int)remainingData);
                     note.ParseHeader(note.noteHeader);
                 }
             }
 
-            //writeMPKData(note.noteData);
             writeMPKData(note.Data);
 
-            //long sizeInPages = note.noteData.Length / PageSize;
-            long sizeInPages = note.Data.Length / PageSize;
-            MessageBox.Show($"Note used {sizeInPages} pages.");
+            note.PageSize = note.Data.Length / PageSize;
+            MessageBox.Show($"Note used {note.PageSize} " + (note.PageSize == 1 ? "page." : "pages."));
 
-            updateIndexTable(firstFreePage-(short)sizeInPages, (short)sizeInPages);
-            //for (int i = (this.firstFreePage-(int)sizeInPages); i < this.firstFreePage; i++) this.pageAllocated[i] = true;
-            //this.firstFreePage += (int)sizeInPages;
+            updateIndexTable(firstFreePage-(short)note.PageSize, (short)note.PageSize);
             updateIndexTable();
             notes.Add(note);
         }
@@ -732,9 +730,45 @@ namespace Dexpedition64
 
         }
 
+        public void SaveMPK(int comPort, string fileName)
+        {
+            using (FileStream fs = File.OpenWrite(fileName))
+            {
+                DexDrive drive = new DexDrive();
+                if (drive.StartDexDrive($"COM{comPort}"))
+                {
+                    try
+                    {
+                        for (ushort i = 0; i < 128; i++)
+                        {
+                            // Read a frame from the memory card.
+                            byte[] cardData = drive.ReadMemoryCardFrame(i);
+                            fs.Write(cardData, 0, cardData.Length);
+                        }
+                        drive.StopDexDrive();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Error: " + ex.Message +
+                            "\nAre you sure your DexDrive is plugged in?" +
+                            "\nTry disconnecting and reconnecting the power.",
+                            "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                        ErrorCode = 6;
+                        ErrorStr = "Read Failed.";
+                    }
+                }
+                else
+                {
+                    ErrorCode = 5;
+                    ErrorStr = "Read from card failed.";
+                }
+            }
+        }
+
         public void SaveMPK(string fileName, Mempak mpk, List<MPKNote> notes)
         {
-            using(FileStream fs = new FileStream(fileName, FileMode.Create))
+            using (FileStream fs = new FileStream(fileName, FileMode.Create))
             {
                 // Write the header
                 byte[] header = BuildHeader(mpk);
@@ -800,16 +834,16 @@ namespace Dexpedition64
 
     class MPKNote
     {
-        public const int TotalDataLength = 31488;
         public string GameCode { get; set; }
         public string PubCode { get; set; }
         public string NoteTitle { get; set; }
         public string MagicString { get; set; }
         public string NoteExtension { get; set; }
+
         public short StartPage;
         public byte Status;
         public byte Version;
-        public byte[] Data = new byte[TotalDataLength];
+        public byte[] Data;
         public byte[] rawData;
         public byte[] rawTimestamp = new byte[5];
         public int PageSize = 1;
@@ -822,7 +856,6 @@ namespace Dexpedition64
         public byte[] noteExtRaw = new byte[4];
         public byte[] startPageRaw = new byte[2];
         public byte[] NoteEntry = new byte[16];
-        //public byte[] noteData;
         public byte[] noteHeader = new byte[32];
         List<short> indexTable = new List<short>();
         

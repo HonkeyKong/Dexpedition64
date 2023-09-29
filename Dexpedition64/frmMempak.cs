@@ -1,12 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Collections.Generic;
-/*using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;*/
 using System.Windows.Forms;
 
 namespace Dexpedition64
@@ -50,6 +44,7 @@ namespace Dexpedition64
 
                 PopulateManager();
 
+                /*
                 // Populate the listbox with current data
                 foreach (MPKNote note in mPKNotes)
                 {
@@ -60,7 +55,9 @@ namespace Dexpedition64
                     NoteEntry += ", " + note.PageSize + (note.PageSize == 1 ? " page." : " pages.");
 
                     lstNotes.Items.Add(NoteEntry);
-                }
+                }*/
+
+                RefreshNoteList();
 
                 fileLoaded = true;
                 mpk.Type = Mempak.CardType.CARD_VIRTUAL;
@@ -70,6 +67,28 @@ namespace Dexpedition64
                     MessageBox.Show("Error: " + mpk.ErrorStr, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
+        }
+
+        private void RefreshNoteList()
+        {
+            // Clear the lists
+            PopulateManager();
+            lstNotes.Items.Clear();
+
+            // Populate the listbox with current data
+            foreach (MPKNote note in mPKNotes)
+            {
+                /*string NoteEntry = "";
+                NoteEntry += note.GameCode + " - " + note.PubCode;
+                NoteEntry += " - " + note.NoteTitle + "." + note.NoteExtension;
+                NoteEntry += " - Page " + note.StartPage.ToString();
+                NoteEntry += ", " + note.PageSize + (note.PageSize == 1 ? " page." : " pages.");*/
+
+                string NoteEntry = $"{note.GameCode}-{note.PubCode} - {note.NoteTitle}.{note.NoteExtension} - Page {note.StartPage.ToString()}, {note.PageSize} {(note.PageSize == 1 ? "page." : "pages.")}";
+
+                lstNotes.Items.Add(NoteEntry);
+            }
+
         }
 
         private void frmMempak_Load(object sender, EventArgs e)
@@ -137,6 +156,7 @@ namespace Dexpedition64
             }
 
             PopulateManager();
+            RefreshNoteList();
         }
 
         private void btnDelete_Click(object sender, EventArgs e)
@@ -173,9 +193,28 @@ namespace Dexpedition64
 
             if (saveFileDialog.ShowDialog() == DialogResult.OK)
             {
-                if(fileLoaded)
+                if((mpk.Type == Mempak.CardType.CARD_VIRTUAL) && (fileLoaded))
                 {
                     mpk.SaveMPK(saveFileDialog.FileName, mpk, mPKNotes);
+                }
+                else if(mpk.Type == Mempak.CardType.CARD_PHYSICAL && (fileLoaded))
+                {
+                    try
+                    {
+                        mpk.SaveMPK(int.Parse(cbComPort.Text), saveFileDialog.FileName);
+                    }
+                    catch (FormatException)
+                    {
+                        mpk.ErrorStr = "COM Port should be a number.";
+                        mpk.ErrorCode = 1;
+                        return;
+                    }
+                    catch (ArgumentNullException)
+                    {
+                        mpk.ErrorStr = "COM Port should contain a value.";
+                        mpk.ErrorCode = 6;
+                        return;
+                    }
                 }
                 else
                 {
@@ -195,6 +234,7 @@ namespace Dexpedition64
             
             // Don't forget to clean up from any previously open files.
             mPKNotes.Clear();
+            lstNotes.Items.Clear();
             PopulateManager();
             fileLoaded = true;
         }
@@ -222,6 +262,7 @@ namespace Dexpedition64
 
                 PopulateManager();
 
+                /*
                 lstNotes.Items.Clear();
 
                 // Populate the listbox
@@ -234,7 +275,9 @@ namespace Dexpedition64
                     NoteEntry += ", " + note.PageSize + (note.PageSize == 1 ? " page." : " pages.");
 
                     lstNotes.Items.Add(NoteEntry);
-                }
+                }*/
+
+                RefreshNoteList();
 
                 // If there was an error, show it.
                 if(mpk.ErrorCode != 0 ) MessageBox.Show("Error: " + mpk.ErrorStr, "Error", MessageBoxButtons.OK, MessageBoxIcon.Information);

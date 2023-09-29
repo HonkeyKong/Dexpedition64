@@ -44,8 +44,7 @@ namespace Dexpedition64
                     {
                         try
                         {
-                            ushort i;
-                            for (i = 0; i < 128; i++)
+                            for (ushort i = 0; i < 128; i++)
                             {
                                 // Read a frame from the memory card.
                                 byte[] cardData = drive.ReadMemoryCardFrame(i);
