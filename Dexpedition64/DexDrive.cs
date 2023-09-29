@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.IO.Ports;
 using System.Threading;
 
@@ -136,7 +137,7 @@ namespace Dexpedition64
 
             //Read a frame from the Memory Card
             SendDataToPort((byte)DexCommands.READ, new byte[] { FrameLsb, FrameMsb }, 0);
-
+            
             //Wait for the buffer to fill
             while (OpenedPort.BytesToRead < 261 && DelayCounter < 16)
             {
@@ -146,10 +147,11 @@ namespace Dexpedition64
 
             //Read Memory Card data
             byte[] ReadData = ReadDataFromPort();
+            File.WriteAllBytes($"rawbytes{FrameNumber}.bin", ReadData);
 
             //Copy received data (filter IAI prefix)
             Array.Copy(ReadData, 4, ReturnDataBuffer, 0, 256);
-
+            
             //Calculate XOR checksum
             for (int i = 0; i < 256; i++)
             {
@@ -164,6 +166,7 @@ namespace Dexpedition64
             }
 
             //Return read data
+            File.WriteAllBytes($"page{FrameNumber}.bin", ReturnDataBuffer);
             return ReturnDataBuffer;
         }
 
@@ -229,6 +232,7 @@ namespace Dexpedition64
             //Fetch DexDrive's response to the last command
             ReadData = ReadDataFromPort();
 
+            File.WriteAllBytes($"Frame{FrameNumber}.bin", FrameData);
             //Check the return status (return true if all went OK)
             if (ReadData[0x3] == (byte)DexResponses.WRITE_OK || ReadData[0x3] == (byte)DexResponses.WRITE_SAME) return true;
             else return false;

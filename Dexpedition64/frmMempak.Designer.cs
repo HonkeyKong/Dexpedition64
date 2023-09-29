@@ -53,6 +53,7 @@
             this.lstNotes.Name = "lstNotes";
             this.lstNotes.Size = new System.Drawing.Size(399, 225);
             this.lstNotes.TabIndex = 0;
+            this.lstNotes.SelectedIndexChanged += new System.EventHandler(this.lstNotes_SelectedIndexChanged);
             // 
             // btnImport
             // 

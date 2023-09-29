@@ -18,6 +18,15 @@ namespace Dexpedition64
             InitializeComponent();
         }
 
+        private void PopulateManager()
+        {
+            lblLabel.Text = "Label: " + mpk.Label;
+            lblSerial.Text = "Serial: " + mpk.SerialNumber;
+            lblCkSum1.Text = "Checksum 1: " + mpk.CheckSum1;
+            lblCkSum2.Text = "Checksum 2: " + mpk.CheckSum2;
+            lblRealCksum.Text = "Calculated: " + mpk.RealCheckSum;
+        }
+
         private bool fileLoaded = false;
         Mempak mpk;
         List<MPKNote> mPKNotes = new List<MPKNote>();
@@ -39,12 +48,7 @@ namespace Dexpedition64
 
                 mpk = new Mempak(mpkFile.FileName, mPKNotes);
 
-                // Print the label and serial
-                lblLabel.Text = mpk.Label;
-                lblSerial.Text = mpk.SerialNumber;
-                lblCkSum1.Text = mpk.CheckSum1;
-                lblCkSum2.Text = mpk.CheckSum2;
-                lblRealCksum.Text = mpk.RealCheckSum;
+                PopulateManager();
 
                 // Populate the listbox with current data
                 foreach (MPKNote note in mPKNotes)
@@ -101,7 +105,7 @@ namespace Dexpedition64
             {
                 try
                 {
-                    if (mpk.Type == Mempak.CardType.CARD_PHYSICAL) currentNote.Data = mpk.ReadNoteFromCard(currentNote, int.Parse(cbComPort.Text));
+                    if (mpk.Type == Mempak.CardType.CARD_PHYSICAL) currentNote.Data = mpk.ReadNoteFromCard(currentNote, int.Parse(cbComPort.Text)).ToArray();
                 } catch(FormatException) {
                     MessageBox.Show("COM Port should be a number.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
@@ -116,7 +120,23 @@ namespace Dexpedition64
 
         private void btnImport_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("Not implemented yet.");
+            OpenFileDialog openFileDialog = new OpenFileDialog
+            {
+                Filter = "N64 Save Notes (*.note)|*.note|All files (*.*)|*.*",
+                FilterIndex = 0
+            };
+
+            if (openFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                MPKNote note = new MPKNote(openFileDialog.FileName);
+                mpk.ImportNote(note, mPKNotes);
+            }
+            if (mpk.ErrorCode != 0)
+            {
+                MessageBox.Show("Error: " + mpk.ErrorStr, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            PopulateManager();
         }
 
         private void btnDelete_Click(object sender, EventArgs e)
@@ -126,8 +146,15 @@ namespace Dexpedition64
 
             try
             {
-                lstNotes.Items.Remove(lstNotes.Items[lstNotes.SelectedIndex]);
-                mpk.DeleteNote(lstNotes.SelectedIndex, mPKNotes, mpk.IndexTable);
+                if (mpk.Type == Mempak.CardType.CARD_VIRTUAL)
+                {
+                    lstNotes.Items.Remove(lstNotes.Items[lstNotes.SelectedIndex]);
+                    mpk.DeleteNote(lstNotes.SelectedIndex, mPKNotes, mpk.IndexTable);
+                }
+                else if(mpk.Type == Mempak.CardType.CARD_PHYSICAL)
+                {
+                    MessageBox.Show("Deleting from physical cards is not supported yet.");
+                }
             } 
             catch(ArgumentOutOfRangeException)
             {
@@ -164,7 +191,12 @@ namespace Dexpedition64
 
         private void btnNew_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("Not implemented yet.");
+            mpk = new Mempak();
+            
+            // Don't forget to clean up from any previously open files.
+            mPKNotes.Clear();
+            PopulateManager();
+            fileLoaded = true;
         }
 
         private void btnReadCard_Click(object sender, EventArgs e)
@@ -187,8 +219,9 @@ namespace Dexpedition64
                     mpk.ErrorCode = 6;
                     return;
                 }
-                
-                lblLabel.Text = "Label: " + mpk.Label;
+
+                PopulateManager();
+
                 lstNotes.Items.Clear();
 
                 // Populate the listbox
@@ -222,6 +255,11 @@ namespace Dexpedition64
         {
             MainForm mfrm = new MainForm();
             mfrm.Show();
+        }
+
+        private void lstNotes_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
         }
     }
 }
