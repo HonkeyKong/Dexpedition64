@@ -147,7 +147,7 @@ namespace Dexpedition64
 
             //Read Memory Card data
             byte[] ReadData = ReadDataFromPort();
-            File.WriteAllBytes($"rawbytes{FrameNumber}.bin", ReadData);
+            //File.WriteAllBytes($"rawbytes{FrameNumber}.bin", ReadData);
 
             //Copy received data (filter IAI prefix)
             Array.Copy(ReadData, 4, ReturnDataBuffer, 0, 256);
@@ -166,7 +166,7 @@ namespace Dexpedition64
             }
 
             //Return read data
-            File.WriteAllBytes($"page{FrameNumber}.bin", ReturnDataBuffer);
+            //File.WriteAllBytes($"page{FrameNumber}.bin", ReturnDataBuffer);
             return ReturnDataBuffer;
         }
 
@@ -232,7 +232,7 @@ namespace Dexpedition64
             //Fetch DexDrive's response to the last command
             ReadData = ReadDataFromPort();
 
-            File.WriteAllBytes($"Frame{FrameNumber}.bin", FrameData);
+            //File.WriteAllBytes($"Frame{FrameNumber}.bin", FrameData);
             //Check the return status (return true if all went OK)
             if (ReadData[0x3] == (byte)DexResponses.WRITE_OK || ReadData[0x3] == (byte)DexResponses.WRITE_SAME) return true;
             else return false;

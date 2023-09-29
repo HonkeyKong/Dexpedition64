@@ -695,14 +695,7 @@ namespace Dexpedition64
                 fs.Write(new byte[] { 0x00, 0x00, 0x00 }, 0, 3);
 
                 // Write save data
-                //fs.Write(note.Data.ToArray(), 0, note.Data.ToArray().Length);
-                //fs.Seek(0x50, SeekOrigin.Begin);
-
                 fs.Write(note.Data, 0, note.Data.Length);
-                File.WriteAllBytes("fuckinshit.bin", note.Data);
-
-                //fs.Write(note.noteData, 0, note.noteData.Length);
-                //File.WriteAllBytes("fuckinshit.bin", note.noteData);
 
                 // Close the file
                 fs.Close();
