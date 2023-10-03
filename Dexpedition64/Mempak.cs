@@ -9,20 +9,50 @@ using System.Collections;
 using System.Windows.Forms;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.ComponentModel;
+using System.Management;
+using System.Diagnostics.Eventing.Reader;
 
 namespace Dexpedition64
 {
+    public class ProgressEventArgs : EventArgs
+    {
+        public int ProgressValue { get; }
+
+        public ProgressEventArgs(int progressValue)
+        {
+            ProgressValue = progressValue;
+        }
+    }
+
     class Mempak
     {
-        private const int CardSize = 32768;
-        private const int PageSize = 256;
-        private const int TotalPages = 128;
+        public const int PageSize = 256;
+        public const int CardSize = 32768;
+        public const int TotalPages = 128;
+        public const int NoteEntrySize = 32;
         private const int OpenPage = 0x03;
-        private const int NoteEntrySize = 32;
         private const int IndexTablePage = 1;
         private const int IndexTableBackupPage = 2;
         private const int NoteTablePage = 3;
-        private const int noteStartPage = 0x06;
+        private const int noteStartPage = 0x05;
+
+        public string Label;
+        public string CheckSum1;
+        public string CheckSum2;
+        public string RealCheckSum;
+        public string SerialNumber;
+        public int firstFreePage = 5;
+        public int ErrorCode = 0;
+        public string ErrorStr = "";
+        public List<short> IndexTable = new List<short>();
+        public byte[] Header = new byte[256];
+        public byte[] Data = new byte[CardSize];
+        public int WriteProgress = 0;
+        public event EventHandler<ProgressEventArgs> ProgressChanged;
+
+        public enum CardType { CARD_NONE, CARD_VIRTUAL, CARD_PHYSICAL };
+        public CardType Type = CardType.CARD_NONE;
 
         public static readonly Dictionary<byte, string> N64Symbols = new Dictionary<byte, string>
         {
@@ -65,6 +95,95 @@ namespace Dexpedition64
         public Int16 ByteSwap(Int16 i)
         {
             return (Int16)(((i << 8) & 0xFF00) + ((i >> 8) & 0xFF));
+        }
+
+        public void FormatCard(int comPort)
+        {
+            System.Windows.Forms.DialogResult yn = MessageBox.Show("Format Card?\nWARNING: ALL DATA WILL BE LOST.", "Format Card?", MessageBoxButtons.YesNo);
+            if (yn == System.Windows.Forms.DialogResult.No)
+            {
+                MessageBox.Show("Format cancelled.", "Cancelled", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            else if (yn == System.Windows.Forms.DialogResult.Yes)
+            {
+                DexDrive drive = new DexDrive();
+                WriteProgress = 0;
+                //ProgressChanged?.Invoke(this, new ProgressEventArgs(WriteProgress));
+
+                if (drive.StartDexDrive($"COM{comPort}"))
+                {
+                    try
+                    {
+                        string strFailed = "Writing frame failed.";
+                        void showError(string msg)
+                        {
+                            MessageBox.Show(msg, "Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+
+                        if (!drive.WriteMemoryCardFrame(0, Mempak.BuildHeader()))
+                        {
+                            showError(strFailed);
+                            return;
+                        }
+                        WriteProgress += 16;
+
+                        // Make a quick Index table and fill it with blanks.
+                        List<short> table = new List<short>();
+                        for (ushort i = 0; i < 128; i++)
+                        {
+                            table.Add(0x0003);
+                        }
+
+                        // Calculate the checksum.
+                        byte ckByte = 0;
+                        for (int i = 10; i < 128; i++)
+                        {
+                            ckByte += (byte)this.IndexTable[i];
+                        }
+                        // Write the checksum to the index table.
+                        table[1] = ckByte;
+
+                        // Write the index table to the card.
+                        for (ushort i = 1; i < 3; i++) 
+                        {
+                            if (!drive.WriteMemoryCardFrame(i, table.ToArray().SelectMany(BitConverter.GetBytes).ToArray()))
+                            {
+                                showError(strFailed);
+                                return;
+                            }
+                            WriteProgress += 16;
+                        }
+
+                        // Clear the note table
+                        for (ushort i = 3; i < 5; i++)
+                        {
+                            if (!drive.WriteMemoryCardFrame(i, DexDrive.BlankPage()))
+                            {
+                                showError(strFailed);
+                                return;
+                            }
+                            WriteProgress += 16;
+                        }
+
+                        // And we're done!
+                        drive.StopDexDrive();
+                        WriteProgress += 4;
+                        MessageBox.Show("Card formatted.", "Done", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Error: " + ex.Message +
+                            "\nAre you sure your DexDrive is plugged in?" +
+                            "\nTry disconnecting and reconnecting the power.",
+                            "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("Format Failed.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
         }
 
         public List<string> ReadNoteTable(byte[] table)
@@ -141,12 +260,11 @@ namespace Dexpedition64
             byte[] IDBlock = new byte[32];
             byte[] serial = new byte[24];
             Random rnd = new Random();
-            int i;
 
             // Generate a random serial number
             rnd.NextBytes(serial);
 
-            for (i = 0; i < 24; i++)
+            for (int i = 0; i < serial.Length; i++)
             {
                 IDBlock[i] = serial[i];
             }
@@ -158,7 +276,7 @@ namespace Dexpedition64
 
             // Calculate the first checksum
             ushort ckSum1 = 0;
-            for (i = 0; i < 28; i += 2)
+            for (int i = 0; i < 28; i += 2)
             {
                 ushort ckWord = (ushort)((IDBlock[i] << 8) + (IDBlock[i + 1]));
                 ckSum1 += ckWord;
@@ -243,21 +361,6 @@ namespace Dexpedition64
             return header;
         }
 
-        public string Label;
-        public string CheckSum1;
-        public string CheckSum2;
-        public string RealCheckSum;
-        public string SerialNumber;
-        public int firstFreePage = 5;
-        public int ErrorCode = 0;
-        public string ErrorStr = "";
-        public List<short> IndexTable = new List<short>();
-        public byte[] Header = new byte[256];
-        public byte[] Data = new byte[CardSize];
-
-        public enum CardType { CARD_NONE, CARD_VIRTUAL, CARD_PHYSICAL };
-        public CardType Type = CardType.CARD_NONE;
-
         private ushort CalculateChecksum(byte[] serial)
         {
             ushort checksum = 0;
@@ -300,7 +403,6 @@ namespace Dexpedition64
 
         // This version updates the specific page with the data offset.f
         private void updateIndexTable(int pageNum, short sizeinPages) {
-            //if (sizeinPages > 1) mpk.IndexTable[pageNum] = (short)(pageNum + 1);
 
             if (sizeinPages > 1)
             {
@@ -309,6 +411,7 @@ namespace Dexpedition64
                 {
                     if (pageCount < sizeinPages) this.IndexTable[i] = (short)(i + 1); else this.IndexTable[i] = 1;
                     pageCount++;
+                    //if(pageCount == sizeinPages) break;
                 }
             } else this.IndexTable[pageNum] = 1;
 
@@ -319,6 +422,11 @@ namespace Dexpedition64
                 ckByte += (byte)this.IndexTable[i];
             }
             this.IndexTable[1] = ckByte;            
+        }
+
+        private void clearIndexPage(ushort pageNum)
+        {
+            this.IndexTable[pageNum] = OpenPage;
         }
 
         public Mempak()
@@ -341,7 +449,7 @@ namespace Dexpedition64
                 serial[i] = this.Header[i + 0x20];
             }
 
-            this.SerialNumber = string.Join(":", serial.Select(hex => string.Format("{0:X2}", hex)));
+            this.SerialNumber = string.Join("", serial.Select(hex => string.Format("{0:X2}", hex)));
 
             // Write the Index table.
             for (int i = 0; i < 128; i++) {
@@ -350,30 +458,55 @@ namespace Dexpedition64
 
             updateIndexTable();
 
-            MessageBox.Show($"New MPK created with serial number {this.SerialNumber}");
+            //MessageBox.Show($"New MPK created with serial number {this.SerialNumber}");
         }
 
         public Mempak(string fileName, List<MPKNote> notes)
         {
-
+            bool dexDriveSave = false;
+            // Read the file into an array
+            byte[] fileData = File.ReadAllBytes(fileName);
+            
+            // Read the header into an array
+            byte[] magicString = new byte[12];
+            Array.Copy(fileData, magicString, 12);
+            
+            string headerString = System.Text.Encoding.UTF8.GetString(magicString);
+            if(headerString == "123-456-STD\0")
+            {
+                MessageBox.Show("DexDrive image detected. Converting to MPK...");
+                dexDriveSave = true;
+                byte[] rawCard = new byte[CardSize];
+                Array.Copy(fileData, 0x1040, rawCard, 0, CardSize);
+                fileName = "tmpCard.tmp";
+                File.WriteAllBytes(fileName, rawCard);
+            }
+            
             using (FileStream fs = File.OpenRead(fileName))
             {
                 BinaryReader br = new BinaryReader(fs);
                 Data = br.ReadBytes((int)fs.Length);
 
                 // Copy the header.
-                for(int i = 0; i < 256; i++)
+                if (dexDriveSave)
                 {
-                    Header[i] = Data[i];
+                    Array.Copy(BuildHeader(), Header, 256);
+                }
+                else
+                {
+                    Array.Copy(Data, Header, 256);
                 }
 
                 fs.Seek(0, SeekOrigin.Begin);
 
-                // Read the label
-                byte[] cardLabel = br.ReadBytes(32);
+                byte[] cardLabel = new byte[32];
+                Array.Copy(Header, cardLabel, 32);
+
+                // For posterity's sake, zoom up 32 bytes
+                br.ReadBytes(32);
 
                 // Print the label
-                this.Label = "Label: " + Encoding.Default.GetString(cardLabel);
+                this.Label = Encoding.ASCII.GetString(cardLabel);
 
                 // Read the serial number
                 byte[] serial = br.ReadBytes(28);
@@ -403,64 +536,63 @@ namespace Dexpedition64
                 br.ReadBytes(192); // Just chuck 'em
 
                 // Convert our serial number to a hex string.
-                this.SerialNumber = string.Join(":", serial.Select(hex => string.Format("{0:X2}", hex)));
+                this.SerialNumber = string.Join("", serial.Select(hex => string.Format("{0:X2}", hex)));
 
                 // Read the Index Table
                 MemoryStream indexTable = new MemoryStream(br.ReadBytes(512));
                 BinaryReader br2 = new BinaryReader(indexTable);
-                for (int i = 0; i < 512; i += 2)
+                for (int i = 0; i < 128; i ++)
                 {
                     IndexTable.Add(ByteSwap(br2.ReadInt16()));
                 }
-                
-                byte ckByte = 0;
-                
-                for (int i = 0x0A; i < 256; i++)
-                {
-                    ckByte += (byte)indexTable.ReadByte();
-                }
 
+                updateIndexTable();
+
+                int totalPages = 0;
                 // Read the Note Table
                 for (int i = 0; i < 16; i++)
                 {
                     MemoryStream header = new MemoryStream(br.ReadBytes(32));
-                    notes.Add(new MPKNote(header, indexTable));
-                }
-
-                // Copy the note.
-                foreach (MPKNote note in notes)
-                {
-                    //note.Data = new MemoryStream();
-                    MemoryStream noteData = new MemoryStream();
-
-                    // Copy the note.
-                    int pageCount = 0;
-                    foreach (short page in note.Pages)
+                    MPKNote note = new MPKNote();
+                    if (header.ToArray()[0] != 0x00)
                     {
-                        if ((page != 0) && (page < 128))
+                        note.ParseHeader(header.ToArray());
+                        //MessageBox.Show($"Start Page: {note.StartPage.ToString()}");
+                        MemoryStream noteStream = new MemoryStream();
+                        BinaryWriter noteData = new BinaryWriter(noteStream);
+
+                        if (IndexTable[note.StartPage] == 0x0001)
                         {
-                            try
-                            {
-                                fs.Seek((page * 0x100), SeekOrigin.Begin);
-                                noteData.Write(br.ReadBytes(256), 0, 256);
-                            }
-                            catch (System.IO.EndOfStreamException) {
-                                ErrorCode = 3;
-                                ErrorStr += $"End of Stream reached at {note.NoteTitle.ToString()}, page {page}\n";
-                            }
-                            pageCount++;
+                            noteData.Write(Data, Mempak.PageSize * note.StartPage, Mempak.PageSize);
+                            note.PageSize = 1;
                         }
+                        else
+                        {
+                            short nextNote = note.StartPage;
+                            while (IndexTable[nextNote] != 0x0001)
+                            {
+                                note.PageSize++;
+                                noteData.Write(Data, Mempak.PageSize * nextNote, Mempak.PageSize);
+                                note.Pages.Add(nextNote);
+                                nextNote++;
+                            }
+                        }
+
+                        note.Data = noteStream.ToArray();
+                        totalPages += note.PageSize;
+                        notes.Add(note);
                     }
-                    note.Data = new byte[pageCount * 256];
-                    note.Data = noteData.ToArray();
                 }
+
+                this.firstFreePage = 5 + totalPages;
             }
+            File.Delete("tmpCard.tmp");
         }
 
         public Mempak(int comPort, List<MPKNote> notes)
         {
             DexDrive drive = new DexDrive();
-            if (!drive.StartDexDrive("COM" + comPort))
+            if (!drive.StartDexDrive($"COM{comPort}"))
             {
                 ErrorCode = 1;
                 ErrorStr = $"Failed to initialize DexDrive on COM{comPort}.";
@@ -469,8 +601,6 @@ namespace Dexpedition64
 
             try
             {
-                drive.ReadMemoryCardFrame(5);
-                drive.ReadMemoryCardFrame(5);
                 MemoryStream page = new MemoryStream(drive.ReadMemoryCardFrame(0));
                 BinaryReader pr = new BinaryReader(page);
 
@@ -504,35 +634,69 @@ namespace Dexpedition64
                 }
 
                 this.Label = Encoding.Default.GetString(cardLabel);
-                this.SerialNumber = string.Join(":", serial.Select(hex => string.Format("{0:X2}", hex)));
+                this.SerialNumber = string.Join("", serial.Select(hex => string.Format("{0:X2}", hex)));
 
-                MemoryStream indexTable = new MemoryStream(
-                    drive.ReadMemoryCardFrame(1).ToArray().Concat(
-                        drive.ReadMemoryCardFrame(2)).ToArray()
-                        );
+                MemoryStream indexTable = new MemoryStream(drive.ReadMemoryCardFrame(1).ToArray().Concat(drive.ReadMemoryCardFrame(2)).ToArray());
 
-                MemoryStream noteTable = new MemoryStream(
-                    drive.ReadMemoryCardFrame(3).ToArray().Concat(
-                        drive.ReadMemoryCardFrame(4)).ToArray()
-                        );
+                MemoryStream noteTable = new MemoryStream(drive.ReadMemoryCardFrame(3).ToArray().Concat(drive.ReadMemoryCardFrame(4)).ToArray());
+
                 BinaryReader br = new BinaryReader(indexTable);
                 
-                for(int i = 0; i < 512; i += 2)
+                for(int i = 0; i < 128; i++)
                 {
                     IndexTable.Add(ByteSwap(br.ReadInt16()));
                 }
 
-                for (int i = 1; i < 16; i++)
+                // Read out the rest of the card into RAM.
+                MemoryStream dataStream = new MemoryStream(Data);
+                BinaryWriter cardWriter = new BinaryWriter(dataStream);
+                for(ushort i = 5; i < 128; i++)
                 {
-                    byte[] header = new byte[32];
-                    for(int j = 0; j < 32; j++)
-                    {
-                        header[j] = (byte)noteTable.ReadByte();
-                    }
-                    notes.Add(new MPKNote(new MemoryStream(header), indexTable));
+                    cardWriter.Write(drive.ReadMemoryCardFrame(i));
                 }
+                Array.Copy(dataStream.ToArray(), Data, dataStream.Length);
+                File.WriteAllBytes("test.data", Data);
+
+                // Read the Note Table
+                BinaryReader nr = new BinaryReader(noteTable);
+                for (int i = 0; i < 16; i++)
+                {
+                    MemoryStream header = new MemoryStream(nr.ReadBytes(32));
+                    MPKNote note = new MPKNote();
+                    if (header.ToArray()[0] != 0x00)
+                    {
+                        note.ParseHeader(header.ToArray());
+                        //MessageBox.Show($"Start Page: {note.StartPage.ToString()}");
+                        MemoryStream noteStream = new MemoryStream();
+                        BinaryWriter noteData = new BinaryWriter(noteStream);
+
+                        if (IndexTable[note.StartPage] == 0x0001)
+                        {
+                            noteData.Write(Data, Mempak.PageSize * (note.StartPage - 5), Mempak.PageSize);
+                            note.PageSize = 1;
+                        }
+                        else
+                        {
+                            short nextNote = note.StartPage;
+                            while (IndexTable[nextNote] != 0x0001)
+                            {
+                                note.PageSize++;
+                                noteData.Write(Data, Mempak.PageSize * (nextNote - 5), Mempak.PageSize);
+                                note.Pages.Add(nextNote);
+                                nextNote++;
+                            }
+                            if (IndexTable[nextNote] == 0x0001)
+                            {
+                                noteData.Write(Data, Mempak.PageSize * (nextNote - 4), Mempak.PageSize);
+                            }
+                        }
+                        note.Data = noteStream.ToArray();
+                        notes.Add(note);
+                    }
+                }
+                // end read note table
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 ErrorCode = 2;
                 ErrorStr = "Mempak(int, List<MPKNote>) Error: " + ex.Message + "\nSource: " + ex.Source ;
@@ -546,28 +710,114 @@ namespace Dexpedition64
             DexDrive drive = new DexDrive();
             MemoryStream data = new MemoryStream();
             BinaryWriter bw = new BinaryWriter(data);
-            if (drive.StartDexDrive("COM" + comPort))
+
+            // This is just some debugging shit
+            string Pages = "";
+            if (note.Pages.Count == 1) Pages = note.StartPage.ToString();
+            else foreach (short page in note.Pages) Pages += $"{page.ToString()} ";
+            MessageBox.Show($"Pages being read:\n{Pages}");
+
+            if (drive.StartDexDrive($"COM{comPort}"))
             {
-                // Read two pages back. This should be OK since we're only
-                // reading notes, so the furthest it should go back is 3.
-                drive.ReadMemoryCardFrame((ushort)(note.StartPage - 2));
-                drive.ReadMemoryCardFrame((ushort)(note.StartPage - 1));
-                foreach (short page in note.Pages)
-                {
-                    bw.Write(drive.ReadMemoryCardFrame((ushort)page));
-                }
+                /*  Read two pages back. This should be OK since we're only
+                    reading notes, so the furthest it should go back is 3.
+                    It's silly that we even have to do that, but there's
+                    a bug in the firmware that causes the first part of
+                    the data read back to be null, so we do this as a way
+                    to "warm up" the read function of the DexDrive.     */
+                /*drive.ReadMemoryCardFrame((ushort)(note.StartPage - 2));
+                drive.ReadMemoryCardFrame((ushort)(note.StartPage - 1));*/
+
+                if (note.Pages.Count == 1) bw.Write(drive.ReadMemoryCardFrame((ushort)note.StartPage));
+                else foreach (short page in note.Pages) bw.Write(drive.ReadMemoryCardFrame((ushort)page));
+
                 drive.StopDexDrive();
             }
             return data;
         }
 
+        public MemoryStream ReadNoteFromFile(Mempak mpk, MPKNote note)
+        {
+            MemoryStream data = new MemoryStream();
+            BinaryWriter bw = new BinaryWriter(data);
+
+            // This is just some debugging shit
+            string Pages = "";
+            if (note.Pages.Count == 1) Pages = note.StartPage.ToString();
+            else foreach (short page in note.Pages) Pages += $"{page.ToString()} ";
+            MessageBox.Show($"Pages being read:\n{Pages}");
+
+            //if (note.Pages.Count == 1) bw.Write(drive.ReadMemoryCardFrame((ushort)note.StartPage));
+            //else foreach (short page in note.Pages) bw.Write(drive.ReadMemoryCardFrame((ushort)page));
+            
+            if (note.Pages.Count == 1) bw.Write(mpk.Data, (PageSize * (note.StartPage - 4)), PageSize);
+            else foreach (short page in note.Pages) bw.Write(mpk.Data, (PageSize * (page - 4)), PageSize);
+            note.Data = data.ToArray();
+
+            MessageBox.Show($"Note {note.NoteTitle}{(note.NoteExtension != null ? ".{note.noteExtension}" : "")} read.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return data;
+        }
+
+        public void DeleteNote(MPKNote note, int startPage)
+        {
+            int currentIndex = startPage;
+            while (currentIndex != -1)
+            {
+                // Find the next block in the sequence
+                int nextIndex = this.IndexTable[currentIndex];
+
+                // Mark the current block as free
+                this.IndexTable[currentIndex] = OpenPage;
+
+                // Move to the next block in the sequence
+                currentIndex = nextIndex;
+                if (nextIndex == 0x0001) break;
+            }
+        }
+
+        public void InsertNote(short startPage, short sizeInPages)
+        {
+            int currentIndex = 0;
+            while (currentIndex < sizeInPages)
+            {
+                if (IndexTable[currentIndex] == 0x0003)
+                {
+                    // Find the next free block if available
+                    int nextFreeIndex = currentIndex + 1;
+                    while (nextFreeIndex < IndexTable.Count && IndexTable[nextFreeIndex] != 0x0003)
+                    {
+                        nextFreeIndex++;
+                    }
+
+                    // Found a free block, insert the entry here
+                    IndexTable[currentIndex] = (short)(currentIndex + 1);
+
+                    // Update the sequence if there's a free block next
+                    if (nextFreeIndex < IndexTable.Count)
+                    {
+                        IndexTable[currentIndex] = (short)nextFreeIndex;
+                    }
+                    else
+                    {
+                        // This is the last entry in the sequence
+                        IndexTable[currentIndex] = 0x0001;
+                    }
+
+                    break;
+                }
+
+                currentIndex = IndexTable[currentIndex];
+            }
+        }
+
+
         public void ImportNote(MPKNote note, List<MPKNote> notes)//, Mempak mpk)
         {
-            if(this.Type == CardType.CARD_PHYSICAL)
+            /*if(this.Type == CardType.CARD_PHYSICAL)
             {
                 MessageBox.Show("Not supported on physical cards yet.", "Not implemented.", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
-            }
+            }*/
 
             if(this.Type == CardType.CARD_NONE)
             {
@@ -575,59 +825,11 @@ namespace Dexpedition64
                 return;
             }
 
-            using (MemoryStream stream = new MemoryStream(note.rawData))
-            {
-                using (BinaryReader reader = new BinaryReader(stream))
-                {
-                    // Seek to the beginning of the stream.
-                    stream.Seek(0, SeekOrigin.Begin);
-
-                    // Read the note version
-                    note.Version = reader.ReadByte();
-                    // Read the "Magic String"
-                    string MagicString = Encoding.UTF8.GetString(reader.ReadBytes(7));
-                    // Read the 16 reserved bits
-                    note.Reserved = reader.ReadInt16();
-                    note.rawTimestamp = reader.ReadBytes(5);
-                    byte[] littleEndianStamp = new byte[8];
-                    int length = Math.Min(note.rawTimestamp.Length, 8); // Ensure we don't go beyond the array length
-
-                    // Reverse the byte order to little-endian
-                    for (int i = 0; i < length; i++)
-                    {
-                        littleEndianStamp[i] = note.rawTimestamp[length - 1 - i];
-                    }
-
-                    note.Timestamp = BitConverter.ToInt64(littleEndianStamp, 0);
-                    note.commentBlocks = reader.ReadByte();
-                    note.Comment = Encoding.UTF8.GetString(reader.ReadBytes(0x10 * note.commentBlocks));
-                    if (MagicString == "MPKNote")
-                    {
-                        MessageBox.Show($"Note is valid, version {note.Version}, timestamp {note.Timestamp}\nComment: {note.Comment}");
-                    } else
-                    {
-                        MessageBox.Show("Note is invalid.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
-                    
-                    note.noteHeader = reader.ReadBytes(32);
-                    long remainingData = reader.BaseStream.Length - reader.BaseStream.Position;
-
-                    // Do a little bit-fuckery to get the start page written in big-endian format.
-                    note.noteHeader[noteStartPage] = (byte)(firstFreePage >> 8 & 0xFF); // Shift the MSB to the right
-                    note.noteHeader[noteStartPage+1] = (byte)(firstFreePage & 0xFF); // Mask out the MSB, so only the LSB goes in.
-
-                    note.Data = reader.ReadBytes((int)remainingData);
-                    note.ParseHeader(note.noteHeader);
-                }
-            }
-
-            writeMPKData(note.Data);
-
+            note.StartPage = (short)firstFreePage;
             note.PageSize = note.Data.Length / PageSize;
-            MessageBox.Show($"Note used {note.PageSize} " + (note.PageSize == 1 ? "page." : "pages."));
-
-            updateIndexTable(firstFreePage-(short)note.PageSize, (short)note.PageSize);
+            updateIndexTable(firstFreePage, (short)note.PageSize);
             updateIndexTable();
+            firstFreePage += note.PageSize;
             notes.Add(note);
         }
 
@@ -643,9 +845,8 @@ namespace Dexpedition64
 
                 // Write reserved bytes
                 fs.Write(new byte[] { 0x00, 0x00 }, 0, 2);
-                //fs.Write(new byte[] { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, 0, 7);
 
-                // Write the timestamp.
+                // Create a timestamp.
                 long unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
                 // Ensure the timestamp fits within a 5-byte array
@@ -680,18 +881,15 @@ namespace Dexpedition64
                 fs.Write(note.pubCodeRaw, 0, 2);
                 // Start page (0xCAFE since this is an extracted save)
                 fs.Write(new byte[] { 0xCA, 0xFE }, 0, 2);
-                // Status/Reserved/Data Sum (None of this crap matters)
+                // Status
                 fs.Write(new byte[] { note.Status }, 0, 1);
+                // Reserved/Data Sum (None of this crap matters)
+                fs.Write(new byte[] { 0x00, 0x00, 0x00 }, 0, 3);
                 // File Extension
                 fs.Write(note.noteExtRaw, 0, 4);
                 // File Name
                 fs.Write(note.noteTitleRaw, 0, 16);
-                // Pad with zeroes, I guess?
-                //fs.Write(new byte[] { 0x00, 0x00, 0x00 }, 0, 3);
-                //fs.Write(new byte[] { 0x00 }, 0, 1);
-                // Reserved/Data Sum (3 bytes)
-                fs.Write(new byte[] { 0x00, 0x00, 0x00 }, 0, 3);
-
+                
                 // Write save data
                 fs.Write(note.Data, 0, note.Data.Length);
 
@@ -718,7 +916,7 @@ namespace Dexpedition64
             notes.RemoveAt(index);
 
             // Calculate new checksum for index table
-            byte ckByte = 0;
+            /*byte ckByte = 0;
             
             for(int i = 10; i < 256; i++)
             {
@@ -726,7 +924,8 @@ namespace Dexpedition64
             }
 
             // Set the new checksum.
-            indexTable[1] = ckByte;
+            indexTable[1] = ckByte;*/
+            updateIndexTable();
 
         }
 
@@ -771,23 +970,30 @@ namespace Dexpedition64
             using (FileStream fs = new FileStream(fileName, FileMode.Create))
             {
                 // Write the header
-                byte[] header = BuildHeader(mpk);
-                fs.Write(header, 0, header.Length);
+                if (mpk.Header[0x39] == 0x00)
+                {
+                    // Header is fucked, build a new one.
+                    byte[] header = BuildHeader();
+                    fs.Write(header, 0, header.Length);
+                }
+                else fs.Write(mpk.Header, 0, mpk.Header.Length);
 
                 // Write the Index Table
-                fs.Seek(0x100, SeekOrigin.Begin);
-                foreach(short node in mpk.IndexTable)
+                //fs.Seek(0x100, SeekOrigin.Begin);
+                for (int i = 0; i < 2; i++)
                 {
-                    fs.Write(new byte[] { (byte)((node >> 8) & 0xFF) }, 0, 1);
-                    fs.Write(new byte[] { (byte)(node & 0xFF) }, 0, 1);
+                    foreach (short node in mpk.IndexTable)
+                    {
+                        fs.Write(new byte[] { (byte)((node >> 8) & 0xFF) }, 0, 1);
+                        fs.Write(new byte[] { (byte)(node & 0xFF) }, 0, 1);
+                    }
                 }
-
                 // Write the index table again
-                foreach (short node in mpk.IndexTable)
+                /*foreach (short node in mpk.IndexTable)
                 {
                     fs.Write(new byte[] { (byte)((node >> 8) & 0xFF) }, 0, 1);
                     fs.Write(new byte[] { (byte)(node & 0xFF) }, 0, 1);
-                }
+                }*/
 
                 // Write note table
                 foreach (MPKNote note in notes)
@@ -822,12 +1028,22 @@ namespace Dexpedition64
                     }
                 }
 
-                // Write card data.
-                for(int i = 1280; i < CardSize; i++)
+                // Write notes.
+                int pageCount = 0;
+                foreach(MPKNote note in notes)
                 {
-                    fs.Write(new byte[] { mpk.Data[i] }, 0, 1);
+                    fs.Write(note.Data, 0, note.Data.Length);
+                    pageCount += note.PageSize;
                 }
+
+                // Zero fill the rest of the card.
+                for (int i = pageCount; i < 123; i++)
+                {
+                    fs.Write(DexDrive.BlankPage(), 0, Mempak.PageSize);
+                }
+
                 fs.Close();
+                MessageBox.Show("File written successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
     }
@@ -857,7 +1073,7 @@ namespace Dexpedition64
         public byte[] startPageRaw = new byte[2];
         public byte[] NoteEntry = new byte[16];
         public byte[] noteHeader = new byte[32];
-        List<short> indexTable = new List<short>();
+        //List<short> indexTable = new List<short>();
         
         public short Reserved { get; set; }
         public Int64 Timestamp { get; set; }
@@ -871,40 +1087,27 @@ namespace Dexpedition64
             {
 
                 // Read the Game Code
-                for (int i = 0; i < 4; i++)
-                {
-                    gameCodeRaw[i] = hr.ReadByte();
-                }
-
+                gameCodeRaw = hr.ReadBytes(4);
                 GameCode = Encoding.Default.GetString(gameCodeRaw);
 
                 // Read the Publisher Code
-                for (int i = 0; i < 2; i++)
-                {
-                    pubCodeRaw[i] = hr.ReadByte();
-                }
-
-                PubCode += Encoding.Default.GetString(pubCodeRaw);
+                pubCodeRaw = hr.ReadBytes(2);
+                PubCode = Encoding.Default.GetString(pubCodeRaw);
 
                 // Read the Start Page
                 StartPage = ByteSwap(hr.ReadInt16());
 
                 // Read the Status byte.
                 Status = hr.ReadByte();
+                
                 // Read and chuck the reserved/data sum bits.
                 hr.ReadBytes(3);
 
                 // Read the note extension
-                for (int i = 0; i < 4; i++)
-                {
-                    noteExtRaw[i] = hr.ReadByte();
-                }
+                noteExtRaw = hr.ReadBytes(4);
 
                 // Read the note title.
-                for (int i = 0; i < 16; i++)
-                {
-                    noteTitleRaw[i] = hr.ReadByte();
-                }
+                noteTitleRaw = hr.ReadBytes(16);
             }
 
             for (int i = 0; i < 4; i++)
@@ -937,9 +1140,28 @@ namespace Dexpedition64
             return (Int16)(((i << 8) & 0xFF00) + ((i >> 8) & 0xFF));
         }
 
+        public MPKNote(byte[] data)
+        {
+            using (MemoryStream stream = new MemoryStream(data))
+            using (BinaryReader reader = new BinaryReader(stream))
+            {
+                this.noteHeader = reader.ReadBytes(32);
+                this.ParseHeader(noteHeader);
+                Data = reader.ReadBytes(data.Length - 32).ToArray();
+            }
+        }
+
+        public MPKNote() {
+            // Basically a null constructor
+            this.noteExtRaw = null;
+            this.noteTitleRaw = null;
+            this.NoteExtension = "";
+            this.NoteTitle = "";
+            this.PageSize = 1;
+        }
+
         public MPKNote(string fileName)
         {
-            //byte[] data = File.ReadAllBytes(fileName);
             this.rawData = File.ReadAllBytes(fileName);
             using (MemoryStream stream = new MemoryStream(this.rawData))
             using (BinaryReader reader = new BinaryReader(stream))
@@ -962,33 +1184,9 @@ namespace Dexpedition64
                 noteHeader = reader.ReadBytes(32);
                 this.ParseHeader(noteHeader);
                 Data = reader.ReadBytes(this.rawData.Length - 0x10 - (0x10 * commentBlocks) - EntrySize).ToArray();
-                //Data = 
             }
         }
 
-
-        public MPKNote(byte[] data)
-        {
-            using (MemoryStream stream = new MemoryStream(data))
-            using (BinaryReader reader = new BinaryReader(stream))
-            {
-                Version = reader.ReadByte();
-                MagicString = Encoding.ASCII.GetString(reader.ReadBytes(7));
-                Reserved = reader.ReadInt16();
-
-                byte[] timestampBytes = reader.ReadBytes(5);
-                Array.Reverse(timestampBytes);
-                Timestamp = BitConverter.ToInt64(timestampBytes, 0);
-
-                commentBlocks = reader.ReadByte();
-
-                // Read comment data (each block is 16 bytes)
-                byte[] commentDataBytes = reader.ReadBytes(16 * commentBlocks);
-                Comment = Encoding.UTF8.GetString(commentDataBytes).TrimEnd('\0');
-                noteHeader = reader.ReadBytes(32);
-                this.ParseHeader(noteHeader);
-            }
-        }
 
         public MPKNote(MemoryStream header, MemoryStream index)
         {
@@ -1005,83 +1203,7 @@ namespace Dexpedition64
                 CheckByte += ir.ReadByte();
             }
 
-            // Read the note table.
-            for (int n = 0; n < 128; n++)
-            {
-                indexTable.Add(ByteSwap(ir.ReadInt16()));
-            }
-            
-            BinaryReader hr = new BinaryReader(header);
-            
-            // Read the Game Code
-            for (int i = 0; i < 4; i++)
-            {
-                gameCodeRaw[i] = hr.ReadByte();
-            }
-
-            GameCode = Encoding.Default.GetString(gameCodeRaw);
-
-            // Read the Publisher Code
-            for (int i = 0; i < 2; i++)
-            {
-                pubCodeRaw[i] = hr.ReadByte();
-            }
-
-            PubCode += Encoding.Default.GetString(pubCodeRaw);
-
-            // Read the Start Page
-            StartPage = ByteSwap(hr.ReadInt16());
-
-            // Read the Status byte.
-            Status = hr.ReadByte();
-
-            // Read the note extension
-            for(int i = 0; i < 4; i++)
-            {
-                noteExtRaw[i] = hr.ReadByte();
-            }
-            
-            // Read the note title.
-            for(int i = 0; i < 16; i++)
-            {
-                noteTitleRaw[i] = hr.ReadByte();
-            }
-
-            for (int i = 0; i < 4; i++)
-            {
-                try
-                {
-                    NoteExtension += Mempak.N64Symbols[noteExtRaw[i]];
-                }
-                catch (System.Collections.Generic.KeyNotFoundException)
-                {
-                    NoteExtension += "";
-                }
-            }
-
-            for (int i = 0; i < 16; i++)
-            {
-                try
-                {
-                    NoteTitle += Mempak.N64Symbols[noteTitleRaw[i]];
-                }
-                catch (System.Collections.Generic.KeyNotFoundException)
-                {
-                    NoteTitle += "";
-                }
-            }
-
-            short currentPage;
-            currentPage = StartPage;
-            short previousPage = 0;
-            while ((indexTable[currentPage] != 0x0001) && (indexTable[currentPage] != 0x0003) && (indexTable[currentPage] > 0) && (indexTable[currentPage] < 129))
-            {
-                Pages.Add(currentPage);
-                previousPage = currentPage;
-                currentPage = indexTable[currentPage];
-                PageSize++;
-            }
-            if (indexTable[currentPage] == 0x0001) Pages.Add((short)(previousPage + 1));
+            this.ParseHeader(header.ToArray());
         }
     }
 }
