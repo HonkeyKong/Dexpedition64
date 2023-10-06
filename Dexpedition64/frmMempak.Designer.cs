@@ -49,12 +49,15 @@
             // 
             // lstNotes
             // 
+            this.lstNotes.AllowDrop = true;
             this.lstNotes.FormattingEnabled = true;
             this.lstNotes.Location = new System.Drawing.Point(12, 56);
             this.lstNotes.Name = "lstNotes";
             this.lstNotes.Size = new System.Drawing.Size(399, 225);
             this.lstNotes.TabIndex = 0;
             this.lstNotes.SelectedIndexChanged += new System.EventHandler(this.lstNotes_SelectedIndexChanged);
+            this.lstNotes.DragDrop += new System.Windows.Forms.DragEventHandler(this.lstNotes_DragDrop);
+            this.lstNotes.DragEnter += new System.Windows.Forms.DragEventHandler(this.lstNotes_DragEnter);
             // 
             // btnImport
             // 

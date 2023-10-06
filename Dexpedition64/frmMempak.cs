@@ -2,8 +2,6 @@
 using System.IO;
 using System.Collections.Generic;
 using System.Windows.Forms;
-using System.ComponentModel;
-using System.Drawing.Printing;
 using System.Linq;
 
 namespace Dexpedition64
@@ -369,6 +367,66 @@ namespace Dexpedition64
 
         private void lstNotes_SelectedIndexChanged(object sender, EventArgs e)
         {
+
+        }
+
+        private void lstNotes_DragEnter(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                e.Effect = DragDropEffects.Copy; // Allow the drop
+            }
+            else
+            {
+                e.Effect = DragDropEffects.None; // Don't allow the drop
+            }
+        }
+
+        private void lstNotes_DragDrop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+
+                foreach (string filePath in files)
+                {
+                    string fileExtension = Path.GetExtension(filePath);
+                    
+                    // Check the file type based on its extension
+                    if (fileExtension.Equals(".note", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (fileLoaded)
+                        {
+                            MPKNote note = new MPKNote(filePath);
+                            if (!mpk.ImportNote(note, mPKNotes)) MessageBox.Show("Failed to import save.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            else RefreshNoteList();
+                        } else
+                        {
+                            MessageBox.Show("Load a file or read a card first.", "No Card", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return;
+                        }
+                    }
+                    else if (fileExtension.Equals(".mpk", StringComparison.OrdinalIgnoreCase) ||
+                             fileExtension.Equals(".n64", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Clear the lists
+                        lstNotes.Items.Clear();
+                        mPKNotes.Clear();
+
+                        mpk = new Mempak(filePath, mPKNotes) { Type = Mempak.CardType.CARD_VIRTUAL };
+                        RefreshNoteList();
+
+                        fileLoaded = true;
+
+                        if (mpk.ErrorCode != 0)
+                        {
+                            MessageBox.Show("Error: " + mpk.ErrorStr, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            mpk.ErrorCode = 0;
+                        }
+                    }
+                    // Add more cases for other file types if needed
+                }
+            }
 
         }
     }

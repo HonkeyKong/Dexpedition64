@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Collections.Generic;
 using System.Windows.Forms;
-using System.Security;
 
 namespace Dexpedition64
 {
@@ -318,7 +317,7 @@ namespace Dexpedition64
 
         public Mempak(string fileName, List<MPKNote> notes)
         {
-            byte[] Data = File.ReadAllBytes(fileName);
+            //byte[] Data = File.ReadAllBytes(fileName);
             using (FileStream fs = File.OpenRead(fileName))
             {
                 // Set up a reader for the file
@@ -385,10 +384,9 @@ namespace Dexpedition64
                 {
                     IndexTable.Add(ByteSwap(br.ReadInt16()));
                 }
-                // Chuck out the backup
-                //br.ReadBytes(256);
-                // Actually, let's read it and compare it to the first index table.
-                // Sanity checking for the win!
+                
+                // Let's read the backup and compare it to the 
+                // first index table. Sanity checking for the win!
                 List<short> IndexTable2 = new List<short>();
                 for (int i = 0; i < 128; i++)
                 {
@@ -403,9 +401,8 @@ namespace Dexpedition64
                 UpdateIndexTable();
 
                 int totalPages = 0;
-                // Initialize the current position variable
-                long currentPosition = SeekPos;
                 short SavedPosition = 0;
+                
                 // Read the Note Table
                 for (int i = 0; i < 16; i++)
                 {
@@ -421,7 +418,7 @@ namespace Dexpedition64
                         BinaryWriter noteData = new BinaryWriter(noteStream);
 
                         short nextNote = note.StartPage;
-                        short lastNote = note.StartPage; // Initialize lastNote
+                        short lastNote = note.StartPage;
 
                         while (nextNote != 0x0001)
                         {
@@ -435,9 +432,7 @@ namespace Dexpedition64
 
                         // Calculate the page size based on the difference between last page and start page
                         note.PageSize = lastNote - note.StartPage + 1;
-
                         note.Data = noteStream.ToArray();
-                        File.WriteAllBytes($"note{i}.dat", note.Data);
                         totalPages += note.PageSize;
                         notes.Add(note);
                     }
