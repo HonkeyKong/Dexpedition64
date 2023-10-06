@@ -44,6 +44,7 @@
             this.label1 = new System.Windows.Forms.Label();
             this.btnFormat = new System.Windows.Forms.Button();
             this.pbCardProgress = new System.Windows.Forms.ProgressBar();
+            this.lblFreePages = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // lstNotes
@@ -106,7 +107,7 @@
             // lblCkSum1
             // 
             this.lblCkSum1.AutoSize = true;
-            this.lblCkSum1.Location = new System.Drawing.Point(414, 11);
+            this.lblCkSum1.Location = new System.Drawing.Point(414, 9);
             this.lblCkSum1.Name = "lblCkSum1";
             this.lblCkSum1.Size = new System.Drawing.Size(0, 13);
             this.lblCkSum1.TabIndex = 4;
@@ -208,11 +209,20 @@
             this.pbCardProgress.Size = new System.Drawing.Size(155, 39);
             this.pbCardProgress.TabIndex = 13;
             // 
+            // lblFreePages
+            // 
+            this.lblFreePages.AutoSize = true;
+            this.lblFreePages.Location = new System.Drawing.Point(414, 29);
+            this.lblFreePages.Name = "lblFreePages";
+            this.lblFreePages.Size = new System.Drawing.Size(0, 13);
+            this.lblFreePages.TabIndex = 14;
+            // 
             // frmMempak
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(522, 340);
+            this.Controls.Add(this.lblFreePages);
             this.Controls.Add(this.pbCardProgress);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.cbComPort);
@@ -258,5 +268,6 @@
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Button btnFormat;
         private System.Windows.Forms.ProgressBar pbCardProgress;
+        private System.Windows.Forms.Label lblFreePages;
     }
 }

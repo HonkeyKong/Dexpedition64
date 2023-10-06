@@ -17,7 +17,9 @@ namespace Dexpedition64
 
         string ErrorMessage = null;
 
+#pragma warning disable IDE0051 // Remove unused private members
         string GetError()
+#pragma warning restore IDE0051 // Remove unused private members
         {
             return ErrorMessage;
         }
@@ -182,7 +184,7 @@ namespace Dexpedition64
         public bool WriteMemoryCardFrame(ushort FrameNumber, byte[] FrameData)
         {
             //Buffer for storing read data from the DexDrive
-            byte[] ReadData = null;
+            byte[] ReadData;
 
             byte FrameLsb = (byte)(FrameNumber & 0xFF);                                 //Least significant byte
             byte FrameMsb = (byte)(FrameNumber >> 8);                                   //Most significant byte
