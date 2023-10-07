@@ -45,6 +45,7 @@
             this.btnFormat = new System.Windows.Forms.Button();
             this.pbCardProgress = new System.Windows.Forms.ProgressBar();
             this.lblFreePages = new System.Windows.Forms.Label();
+            this.txtLabel = new System.Windows.Forms.TextBox();
             this.SuspendLayout();
             // 
             // lstNotes
@@ -118,11 +119,11 @@
             // lblLabel
             // 
             this.lblLabel.AutoSize = true;
-            this.lblLabel.Location = new System.Drawing.Point(9, 11);
+            this.lblLabel.Location = new System.Drawing.Point(12, 9);
             this.lblLabel.Name = "lblLabel";
-            this.lblLabel.Size = new System.Drawing.Size(125, 13);
+            this.lblLabel.Size = new System.Drawing.Size(36, 13);
             this.lblLabel.TabIndex = 5;
-            this.lblLabel.Text = "No Memory Pak Loaded.";
+            this.lblLabel.Text = "Label:";
             // 
             // btnNew
             // 
@@ -220,11 +221,21 @@
             this.lblFreePages.Size = new System.Drawing.Size(0, 13);
             this.lblFreePages.TabIndex = 14;
             // 
+            // txtLabel
+            // 
+            this.txtLabel.Location = new System.Drawing.Point(54, 6);
+            this.txtLabel.MaxLength = 32;
+            this.txtLabel.Name = "txtLabel";
+            this.txtLabel.Size = new System.Drawing.Size(354, 20);
+            this.txtLabel.TabIndex = 15;
+            this.txtLabel.TextChanged += new System.EventHandler(this.txtLabel_TextChanged);
+            // 
             // frmMempak
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(522, 340);
+            this.Controls.Add(this.txtLabel);
             this.Controls.Add(this.lblFreePages);
             this.Controls.Add(this.pbCardProgress);
             this.Controls.Add(this.label1);
@@ -246,7 +257,7 @@
             this.MaximizeBox = false;
             this.Name = "frmMempak";
             this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Hide;
-            this.Text = "MPK Manager - Dexpedition64";
+            this.Text = "Dexpedition64 by HonkeyKong";
             this.Load += new System.EventHandler(this.frmMempak_Load);
             this.ResumeLayout(false);
             this.PerformLayout();
@@ -272,5 +283,6 @@
         private System.Windows.Forms.Button btnFormat;
         private System.Windows.Forms.ProgressBar pbCardProgress;
         private System.Windows.Forms.Label lblFreePages;
+        private System.Windows.Forms.TextBox txtLabel;
     }
 }

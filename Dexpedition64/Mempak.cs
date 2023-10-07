@@ -24,11 +24,12 @@ namespace Dexpedition64
         public string SerialNumber { get; set; }
         public string ErrorStr { get; set; }
         public byte[] Header { get; set; }
+        public byte[] rawData { get; set; }
         public List<short> IndexTable = new List<short>();
-
+        
         public enum CardType { CARD_NONE, CARD_VIRTUAL, CARD_PHYSICAL };
         public CardType Type = CardType.CARD_NONE;
-
+        
         public static readonly Dictionary<byte, string> N64Symbols = new Dictionary<byte, string>
         {
             { 0,  ""}, { 15, " "}, { 16, "0"},
@@ -113,17 +114,11 @@ namespace Dexpedition64
 
                         // Make a quick Index table and fill it with blanks.
                         List<short> table = new List<short>();
-                        for (ushort i = 0; i < 128; i++)
-                        {
-                            table.Add(0x0003);
-                        }
+                        for (ushort i = 0; i < 128; i++) table.Add(0x0003);
 
                         // Calculate the checksum.
                         byte ckByte = 0;
-                        for (int i = 10; i < 128; i++)
-                        {
-                            ckByte += (byte)table[i];
-                        }
+                        for (int i = 10; i < 128; i++) ckByte += (byte)table[i];
                         // Write the checksum to the index table.
                         table[1] = ckByte;
 
@@ -175,12 +170,8 @@ namespace Dexpedition64
 
             // Generate a random serial number
             rnd.NextBytes(serial);
-
-            for (int i = 0; i < serial.Length; i++)
-            {
-                IDBlock[i] = serial[i];
-            }
-
+            
+            for (int i = 0; i < serial.Length; i++) IDBlock[i] = serial[i];
             IDBlock[24] = 0;
             IDBlock[25] = 1;
             IDBlock[26] = 1;
@@ -206,32 +197,41 @@ namespace Dexpedition64
             return IDBlock;
         }
 
-        // A useless vanity label
-        public static readonly byte[] IDLabel = new byte[32]
+        private static bool IsAscii(string input)
         {
-                0x44, 0x45, 0x58, 0x50, 0x45, 0x44, 0x49, 0x54, 0x49, 0x4F, 0x4E, 0x36, 0x34, 0x20, 0x56, 0x30,
-                0x31, 0x20, 0x42, 0x59, 0x20, 0x48, 0x4F, 0x4E, 0x4B, 0x45, 0x59, 0x4B, 0x4F, 0x4E, 0x47, 0x00
-        };
+            foreach (char c in input) if (c > 127) return false;
+            return true;
+        }
 
-        public static byte[] BuildHeader()
+        public static byte[] BuildHeader(string Label)
         {
+            // If the label isn't ASCII, default it.
+            if (!IsAscii(Label)) Label = "Dexpedition64 V01 by HonkeyKong";
             byte[] header = new byte[256];
             byte[] idBlock = GenerateID();
+
+            byte[] LabelBytes = new byte[32];
+            if(Label.Length >= 32) Array.Copy(Encoding.ASCII.GetBytes(Label), LabelBytes, 32);
+            else Array.Copy(Encoding.ASCII.GetBytes(Label), LabelBytes, Label.Length);
 
             // Loop through and write each byte
             for (int i = 0; i < 32; i++)
             {
-                header[i] = IDLabel[i];
+                header[i] = LabelBytes[i];
                 header[i + 0x20] = idBlock[i];
-                header[i + 0x40] = IDLabel[i];
+                header[i + 0x40] = LabelBytes[i];
                 header[i + 0x60] = idBlock[i];
                 header[i + 0x80] = idBlock[i];
                 header[i + 0xA0] = 0x00;
                 header[i + 0xC0] = idBlock[i];
-                header[i + 0xE0] = IDLabel[i];
+                header[i + 0xE0] = LabelBytes[i];
             }
-
             return header;
+        }
+
+        public static byte[] BuildHeader()
+        {
+            return BuildHeader("Dexpedition64 V01 By HonkeyKong");
         }
 
         private ushort CalculateChecksum(byte[] serial)
@@ -249,10 +249,7 @@ namespace Dexpedition64
         {
             // Calculate and set the new checksum.
             byte ckByte = 0;
-            for (int i = 10; i < 128; i++)
-            {
-                ckByte += (byte)this.IndexTable[i];
-            }
+            for (int i = 10; i < 128; i++) ckByte += (byte)this.IndexTable[i];
             this.IndexTable[1] = ckByte;
         }
 
@@ -285,11 +282,87 @@ namespace Dexpedition64
             UpdateIndexTable();
         }
 
+        public void ReadHeaderPage(byte[] page)
+        {
+            MemoryStream PageStream = new MemoryStream(page);
+            BinaryReader br = new BinaryReader(PageStream);
+            // Make a card label.
+            byte[] cardLabel = new byte[32];
+            // Read the card label.
+            cardLabel = br.ReadBytes(32);
+
+            // Read the serial number
+            byte[] serial = br.ReadBytes(28);
+
+            // Read the Checksums
+            short checkSum1 = br.ReadInt16();
+            short checkSum2 = br.ReadInt16();
+
+            // Print our Checksums
+            this.CheckSum1 = checkSum1.ToString("X2");
+            this.CheckSum2 = checkSum2.ToString("X2");
+
+            // Calculate the actual checksum
+            ushort realCkSum = CalculateChecksum(serial);
+
+            // The result should be big-endian. Swap it.
+            this.RealCheckSum = ByteSwap((short)realCkSum).ToString("X2");
+
+            // We're sanity checking this shit right here.
+            // Label Backup #1
+            byte[] LabelBackup1Bytes = br.ReadBytes(32);
+            // ID Block Backups
+            byte[] idBlockBackup = br.ReadBytes(32);
+            byte[] idBlockBackup2 = br.ReadBytes(32);
+            /// According to bryc, this is used as a scratch area
+            /// in some games, so we're just going to ignore it.
+            /// The label is apparently also used as a scratch area
+            /// sometimes, that's why I now make backups.
+            br.ReadBytes(32);
+            // ID Block Backup 3
+            byte[] idBlockBackup3 = br.ReadBytes(32);
+            // Second label backup
+            byte[] LabelBackup2Bytes = br.ReadBytes(32);
+
+            // Now comes the fun part. Sanity checking all this shit.
+            if (((cardLabel[0] == 0x00) && (LabelBackup1Bytes[0] != 0x00)) || ((cardLabel[0] == 0x00) && (LabelBackup2Bytes[0] != 0x00)))
+            {
+                // Label is probably fucked, restore from backup?
+                if (LabelBackup1Bytes.SequenceEqual(LabelBackup2Bytes))
+                {
+                    // Looks like we're actually using my backup section.
+                    Array.Copy(LabelBackup1Bytes, cardLabel, LabelBackup1Bytes.Length);
+                    this.Label = Encoding.UTF8.GetString(LabelBackup1Bytes);
+                }
+                else // Copy from backup 2, I guess?
+                {
+                    Array.Copy(LabelBackup2Bytes, cardLabel, LabelBackup2Bytes.Length);
+                    this.Label = Encoding.UTF8.GetString(LabelBackup1Bytes);
+                }
+            }
+
+            // Set the label
+            this.Label = Encoding.ASCII.GetString(cardLabel);
+
+            // Sanity check the ID block backups to make sure they match.
+            // If they don't, just throw a warning. It'll get rebuilt anyway.
+            if ((!idBlockBackup.SequenceEqual(idBlockBackup2)) || (!idBlockBackup.SequenceEqual(idBlockBackup3)))
+            {
+                MessageBox.Show("ID Block backups don't match.\n" +
+                    "This could mean your original ID block is corrupt,\n" +
+                    "or your backups are just messed up.\n" +
+                    "This will be fixed when saving an MPK or rewriting the card.",
+                    "ID Mismatch!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
+            // Convert our serial number to a hex string.
+            this.SerialNumber = string.Join("", serial.Select(hex => string.Format("{0:X2}", hex)));
+        }
+
         public Mempak()
         {
             // Initialize the fields and properties for a blank Mempak object
             this.Type = CardType.CARD_VIRTUAL;
-            this.Label = "DEXPEDITION64 V01 BY HONKEYKONG";
             this.CheckSum1 = string.Empty;
             this.CheckSum2 = string.Empty;
             this.RealCheckSum = string.Empty;
@@ -300,24 +373,19 @@ namespace Dexpedition64
             byte[] Header = BuildHeader();
             byte[] serial = new byte[28];
             
-            for(int i = 0; i < 28; i++)
-            {
-                serial[i] = Header[i + 0x20];
-            }
+            for(int i = 0; i < 28; i++) serial[i] = Header[i + 0x20];
 
             this.SerialNumber = string.Join("", serial.Select(hex => string.Format("{0:X2}", hex)));
 
             // Write the Index table.
-            for (int i = 0; i < 128; i++) {
-                this.IndexTable.Add(OpenPage);
-            }
+            for (int i = 0; i < 128; i++) this.IndexTable.Add(OpenPage);
 
             UpdateIndexTable();
         }
 
         public Mempak(string fileName, List<MPKNote> notes)
         {
-            //byte[] Data = File.ReadAllBytes(fileName);
+            rawData = File.ReadAllBytes(fileName);
             using (FileStream fs = File.OpenRead(fileName))
             {
                 // Set up a reader for the file
@@ -335,79 +403,33 @@ namespace Dexpedition64
                 
                 // Rewind the file to the start of the MPK.
                 fs.Seek(SeekPos, SeekOrigin.Begin);
-                // Calculate the remaining length of the MPK.
-                long remainingData = fs.Length - fs.Position;
-                                
-                // Rewind the file for reading the tables and such.
-                fs.Seek(SeekPos, SeekOrigin.Begin);
-                
-                // Make a card label.
-                byte[] cardLabel = new byte[32];
-                // Read the card label.
-                cardLabel = br.ReadBytes(32);
-                // Check if the label is good, if not, reconstruct it.
-                if (cardLabel[0] == 0x00) Array.Copy(BuildHeader(), cardLabel, 32);
 
-                // Print the label
-                this.Label = Encoding.ASCII.GetString(cardLabel);
-
-                // Read the serial number
-                byte[] serial = br.ReadBytes(28);
-
-                // Read the Checksums
-                short checkSum1 = br.ReadInt16();
-                short checkSum2 = br.ReadInt16();
-
-                // Print our Checksums
-                this.CheckSum1 = checkSum1.ToString("X2");
-                this.CheckSum2 = checkSum2.ToString("X2");
-
-                // Calculate the actual checksum
-                ushort realCkSum = CalculateChecksum(serial);
-                
-                // The result should be big-endian. Swap it.
-                this.RealCheckSum = ByteSwap((short)realCkSum).ToString("X2");
-
-                /* 32 bytes of null, then two more ID blocks.
-                 * 32 more nulls, one more ID block, 32 null,
-                 * for a grand total of 192 redundant bytes. 
-                 * If we wanted to, we could parse the other
-                 * ID blocks and sanity check, but fuck that. 
-                 * I might go back and do backups and such later. */
-                 br.ReadBytes(192); // Just chuck 'em
-
-                // Convert our serial number to a hex string.
-                this.SerialNumber = string.Join("", serial.Select(hex => string.Format("{0:X2}", hex)));
+                this.ReadHeaderPage(br.ReadBytes(256));
 
                 // Read the Index Table
-                for (int i = 0; i < 128; i ++)
-                {
-                    IndexTable.Add(ByteSwap(br.ReadInt16()));
-                }
+                for (int i = 0; i < 128; i ++) IndexTable.Add(ByteSwap(br.ReadInt16()));
                 
                 // Let's read the backup and compare it to the 
                 // first index table. Sanity checking for the win!
                 List<short> IndexTable2 = new List<short>();
-                for (int i = 0; i < 128; i++)
-                {
-                    IndexTable2.Add(ByteSwap(br.ReadInt16()));
-                }
+                for (int i = 0; i < 128; i++) IndexTable2.Add(ByteSwap(br.ReadInt16()));
 
                 if (!IndexTable.SequenceEqual(IndexTable2)) MessageBox.Show(
-                    "Index and backup Index tables do not match.\nFile system errors could be ahead.", 
-                    "WARNING!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "Index and backup Index tables do not match.\n" +
+                    "File system errors could be ahead.", "WARNING!", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
                 // Recalculate the checksum, that's all this function does.
                 UpdateIndexTable();
 
                 int totalPages = 0;
-                short SavedPosition = 0;
                 
                 // Read the Note Table
                 for (int i = 0; i < 16; i++)
                 {
                     // Store the current position before reading the note entry
-                    SavedPosition = (short)fs.Position;
+                    short SavedPosition = (short)fs.Position;
+
                     MemoryStream header = new MemoryStream(br.ReadBytes(32));
                     MPKNote note = new MPKNote();
 
@@ -462,52 +484,23 @@ namespace Dexpedition64
 
             try
             {
-                MemoryStream page = new MemoryStream(drive.ReadMemoryCardFrame(0));
-                BinaryReader pr = new BinaryReader(page);
+                this.ReadHeaderPage(drive.ReadMemoryCardFrame(0));
                 pBar.PerformStep();
-
-                byte[] cardLabel = pr.ReadBytes(32);
-
-                // Read the serial number
-                byte[] serial = pr.ReadBytes(28);
-
-                // Read the Checksums
-                short checkSum1 = pr.ReadInt16();
-                short checkSum2 = pr.ReadInt16();
-                
-                // Print our Checksums
-                this.CheckSum1 = checkSum1.ToString("X2");
-                this.CheckSum2 = checkSum2.ToString("X2");
-
-                // Calculate the actual checksum
-                ushort realCkSum = CalculateChecksum(serial);
-
-                // The result should be big-endian. Swap it.
-                this.RealCheckSum = ByteSwap((short)realCkSum).ToString("X2");
-
-                for (int i = 0; i < 32; i++)
-                {
-                    cardLabel[i] = (byte)page.ReadByte();
-                    // Small fix for old crappy labels
-                    if (cardLabel[i] == 0x1F) cardLabel[i] = 0x20;
-                }
-
-                this.Label = Encoding.Default.GetString(cardLabel);
-                this.SerialNumber = string.Join("", serial.Select(hex => string.Format("{0:X2}", hex)));
 
                 MemoryStream indexTable = new MemoryStream(drive.ReadMemoryCardFrame(1).ToArray().Concat(drive.ReadMemoryCardFrame(2)).ToArray());
-                pBar.PerformStep();
-                pBar.PerformStep();
+                pBar.PerformStep(); pBar.PerformStep();
+                
                 MemoryStream noteTable = new MemoryStream(drive.ReadMemoryCardFrame(3).ToArray().Concat(drive.ReadMemoryCardFrame(4)).ToArray());
-                pBar.PerformStep();
-                pBar.PerformStep();
+                pBar.PerformStep(); pBar.PerformStep();
 
                 BinaryReader br = new BinaryReader(indexTable);
                 
-                for(int i = 0; i < 128; i++)
-                {
-                    IndexTable.Add(ByteSwap(br.ReadInt16()));
-                }
+                // Populate our Index Table list
+                for(int i = 0; i < 128; i++) IndexTable.Add(ByteSwap(br.ReadInt16()));
+
+                // Populate the Index Table Backup
+                List<short> IndexTable2 = new List<short>();
+                for (int i = 0; i < 128; i++) IndexTable2.Add(ByteSwap(br.ReadInt16()));
 
                 // Read out the rest of the card into RAM.
                 byte[] Data = new byte[this.CardSize - (this.PageSize * 5)];
@@ -518,9 +511,18 @@ namespace Dexpedition64
                     cardWriter.Write(drive.ReadMemoryCardFrame(i));
                     pBar.PerformStep();
                 }
+
+                // One last set of reads, just to get the first 5 pages into RAM.
+                // While we're at it, concatenate the rest of the data as well.
+                // BAM. Raw card image.
+                rawData = drive.ReadMemoryCardFrame(0).Concat(
+                    drive.ReadMemoryCardFrame(1).Concat(
+                        drive.ReadMemoryCardFrame(2).Concat(
+                            drive.ReadMemoryCardFrame(3).Concat(
+                                drive.ReadMemoryCardFrame(4).Concat(Data))))).ToArray();
+                
                 // We're done with the drive now, I think.
                 drive.StopDexDrive();
-                Array.Copy(dataStream.ToArray(), Data, dataStream.Length);
 
                 // Read the Note Table
                 BinaryReader nr = new BinaryReader(noteTable);
@@ -558,6 +560,10 @@ namespace Dexpedition64
                         notes.Add(note);
                     }
                 }
+                if (!IndexTable.SequenceEqual(IndexTable2)) MessageBox.Show(
+                    "Index and backup Index tables do not match.\n" +
+                    "File system errors could be ahead.", "WARNING!",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch(ArgumentNullException)
             {
@@ -627,28 +633,30 @@ namespace Dexpedition64
                 // Ensure the timestamp fits within a 5-byte array
                 if (unixTimestamp >= 0 && unixTimestamp <= 0xFFFFFFFFFF) // 5 bytes (40 bits)
                 {
-                    // Convert the timestamp to a 5-byte array (big-endian)
                     byte[] timestampBytes = BitConverter.GetBytes(unixTimestamp);
                     // Truncate to the first 5 bytes
                     byte[] truncatedTimestamp = new byte[5];
                     Array.Copy(timestampBytes, truncatedTimestamp, 5);
-                    fs.Write(timestampBytes, 0, 5);
+                    Array.Reverse(truncatedTimestamp);
+                    fs.Write(truncatedTimestamp, 0, 5);
                 }
                 else
                 {
-                    MessageBox.Show("Error: The UNIX timestamp exceeds 5 bytes.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Error: The UNIX timestamp exceeds 5 bytes.", "what the fuck", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
-                // Write number of comment blocks (2 16-byte blocks)
+                // Write number of comment blocks (2 16-byte blocks in our case)
                 fs.Write(new byte[] { 0x02 }, 0, 1);
 
-                // Write comment data
-                fs.Write(new byte[] {
-                        0x44, 0x45, 0x58, 0x50, 0x45, 0x44, 0x49, 0x54, 0x49, 0x4F, 0x4E, 0x36, 0x34, 0x20, 0x56, 0x30,
-                        0x31, 0x20, 0x42, 0x59, 0x20, 0x48, 0x4F, 0x4E, 0x4B, 0x45, 0x59, 0x4B, 0x4F, 0x4E, 0x47, 0x00
-                    }, 0, 32);
+                // Write comment data (New Hotness!)
+                string comment = "Dexpedition64 V01 By HonkeyKong";
+                byte[] commentBytes = new byte[32];
+                Array.Copy(Encoding.ASCII.GetBytes(comment), commentBytes, comment.Length);
                 
+                // Write it to the file.
+                fs.Write(commentBytes, 0, commentBytes.Length);
+
                 // Write note entry
                 // Game Code
                 fs.Write(note.GameCodeRaw, 0, 4);
@@ -670,6 +678,7 @@ namespace Dexpedition64
 
                 // Close the file
                 fs.Close();
+                MessageBox.Show("Note saved.", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
@@ -685,7 +694,7 @@ namespace Dexpedition64
             {
                 // Write a new header with a new serial number,
                 // so the N64 doesn't get confused in multiplayer.
-                fs.Write(BuildHeader(), 0, this.PageSize);
+                fs.Write(BuildHeader(mpk.Label), 0, mpk.PageSize);
 
                 // Write the Index Table
                 for (int i = 0; i < 2; i++)
@@ -716,23 +725,16 @@ namespace Dexpedition64
                     fs.Write(note.NoteTitleRaw, 0, 16);
                 }
 
+                byte[] zeroes = new byte[32];
                 // Compensate for < 16 notes by zero filling.
-                if (notes.Count < 16)
-                {
-                    for (int i = 0; i < 16 - notes.Count; i++)
-                    {
-                        for (int j = 0; j < 32; j++)
-                        {
-                            fs.Write(new byte[] { 0x00 }, 0, 1);
-                        }
-                    }
-                }
+                if (notes.Count < 16) for (int i = 0; i < 16 - notes.Count; i++) fs.Write(zeroes, 0, zeroes.Length);
 
                 // Write notes.
                 foreach(MPKNote note in notes) fs.Write(note.Data, 0, note.Data.Length);
-                
+
                 // Zero fill the rest of the card.
-                while (fs.Position < CardSize) fs.Write(new byte[] { 0x00 }, 0, 1);
+                zeroes = new byte[256];
+                while (fs.Position < CardSize) fs.Write(zeroes, 0, 256);
 
                 fs.Close();
                 MessageBox.Show("File written successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -772,11 +774,11 @@ namespace Dexpedition64
 
                 // Read the Game Code
                 GameCodeRaw = hr.ReadBytes(4);
-                GameCode = Encoding.Default.GetString(GameCodeRaw);
+                GameCode = Encoding.ASCII.GetString(GameCodeRaw);
 
                 // Read the Publisher Code
                 PubCodeRaw = hr.ReadBytes(2);
-                PubCode = Encoding.Default.GetString(PubCodeRaw);
+                PubCode = Encoding.ASCII.GetString(PubCodeRaw);
 
                 // Read the Start Page
                 StartPage = ByteSwap(hr.ReadInt16());

@@ -9,7 +9,7 @@ namespace Dexpedition64
     public partial class frmMempak : Form
     {
         private bool fileLoaded = false;
-        Mempak mpk;
+        Mempak mpk = new Mempak();
 #pragma warning disable IDE0044 // Add readonly modifier
         List<MPKNote> mPKNotes = new List<MPKNote>();
 #pragma warning restore IDE0044 // Add readonly modifier
@@ -21,7 +21,7 @@ namespace Dexpedition64
 
         private void PopulateManager()
         {
-            lblLabel.Text = $"Label: {mpk.Label}";
+            txtLabel.Text = mpk.Label;
             lblSerial.Text = $"Serial: {mpk.SerialNumber}";
             lblCkSum1.Text = $"Checksum: 0x{mpk.CheckSum1:X4}";
             if (mpk.RealCheckSum == mpk.CheckSum1) lblCkSum1.ForeColor = System.Drawing.Color.Green;
@@ -151,11 +151,41 @@ namespace Dexpedition64
 
         private void btnSave_Click(object sender, EventArgs e)
         {
+            if(!fileLoaded)
+            {
+                MessageBox.Show("Load a memory card first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
             SaveFileDialog saveFileDialog = new SaveFileDialog
             {
                 Filter = "N64 Memory Paks (*.mpk)|*.mpk|All files (*.*)|*.*",
                 FilterIndex = 0,
             };
+
+            if (Control.ModifierKeys == Keys.Shift)
+            {
+                DialogResult result = MessageBox.Show(
+                "You were holding the shift key while pressing the save button.\n\n" +
+                "This enables a special write mode that writes the raw data from a memory card.\n\n" +
+                "This might cause serial number conflicts, and might not be what you want.\n\n" +
+                "This should only be done if you know what you're doing. Write the file anyway?",
+                "Save Raw Data?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (result == DialogResult.No)
+                {
+                    MessageBox.Show("Save cancelled.", "Cancelled", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                else if (result == DialogResult.Yes)
+                {
+                    if (saveFileDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        File.WriteAllBytes(saveFileDialog.FileName, mpk.rawData);
+                        MessageBox.Show("Raw MPK saved.", "Done", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    return;
+                }
+            }
 
             if (saveFileDialog.ShowDialog() == DialogResult.OK)
             {
@@ -244,6 +274,50 @@ namespace Dexpedition64
                 MessageBox.Show("Load a file or open a card first.");
                 return;
             }
+
+            // Check for the shift key
+            if(Control.ModifierKeys == Keys.Shift)
+            {
+                DialogResult result = MessageBox.Show(
+                "Just a heads-up, you held the shift key while pressing the write button.\n\n" +
+                "This enables a special write mode that writes the raw data to the memory card.\n\n" +
+                "This might cause serial number conflicts, and probably isn't what you want.\n\n" +
+                "This should only be done if you know what you're doing. Write the card anyway?",
+                "Write Raw Card?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (result == DialogResult.No)
+                {
+                    MessageBox.Show("Write cancelled.", "Cancelled", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                else if (result == DialogResult.Yes)
+                {
+                    MemoryStream dataStream = new MemoryStream(mpk.rawData);
+                    BinaryReader dataReader = new BinaryReader(dataStream);
+                    DexDrive drive = new DexDrive();
+                    // Set up the progress bar.
+                    pbCardProgress.Value = 0;
+                    pbCardProgress.Minimum = 0;
+                    pbCardProgress.Maximum = 128;
+                    pbCardProgress.Step = 1;
+                    // Start the write loop.
+                    if (drive.StartDexDrive($"COM{cbComPort.Text}"))
+                    {
+                        for (ushort i = 0; i < 128; i++)
+                        {
+                            if (!drive.WriteMemoryCardFrame(i, dataReader.ReadBytes(mpk.PageSize)))
+                            {
+                                MessageBox.Show($"Writing Frame {i} failed.", "Write Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                return;
+                            }
+                            pbCardProgress.PerformStep();
+                        }
+                        MessageBox.Show("Card written.", "Success!", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    drive.StopDexDrive();
+                    return;
+                }
+            }
+
             DialogResult yn = MessageBox.Show(
             "Write Card?\nWARNING: ALL DATA CURRENTLY ON\nCARD WILL BE OVERWRITTEN.",
             "Write Card?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
@@ -262,7 +336,7 @@ namespace Dexpedition64
                 if (drive.StartDexDrive($"COM{cbComPort.Text}"))
                 {
                     // Write the label and ID block.
-                    drive.WriteMemoryCardFrame(0, Mempak.BuildHeader());
+                    drive.WriteMemoryCardFrame(0, Mempak.BuildHeader(mpk.Label));
                     pbCardProgress.PerformStep();
 
                     // Write the Index Table.
@@ -427,6 +501,16 @@ namespace Dexpedition64
                     // Add more cases for other file types if needed
                 }
             }
+
+        }
+
+        private void txtLabel_TextChanged(object sender, EventArgs e)
+        {
+            mpk.Label = txtLabel.Text;
+        }
+
+        private void frmMempak_KeyDown_1(object sender, KeyEventArgs e)
+        {
 
         }
     }
