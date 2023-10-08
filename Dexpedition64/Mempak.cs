@@ -114,7 +114,7 @@ namespace Dexpedition64
 
                         // Make a quick Index table and fill it with blanks.
                         List<short> table = new List<short>();
-                        for (ushort i = 0; i < 128; i++) table.Add(0x0003);
+                        for (ushort i = 0; i < 128; i++) table.Add(this.OpenPage);
 
                         // Calculate the checksum.
                         byte ckByte = 0;
@@ -143,7 +143,9 @@ namespace Dexpedition64
                             }
                         }
 
-                        // And we're done!
+                        // We could clear out the entire card here, but there's really no point.
+                        // The index table has all pages marked as free, and the note table is empty.
+                        // As far as the N64 is concerned, this is now an empty memory card.
                         drive.StopDexDrive();
                         MessageBox.Show("Card formatted.", "Done", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
@@ -197,19 +199,22 @@ namespace Dexpedition64
             return IDBlock;
         }
 
-        private static bool IsAscii(string input)
+        private static bool IsText(string input)
         {
-            foreach (char c in input) if (c > 127) return false;
+            // The first part of this before the || is basically isControl(), but ignoring zeroes.
+            foreach (char c in input) if (((c != 0x00) && (c < 0x20)) || (c > 0x7F)) return false;
             return true;
         }
 
         public static byte[] BuildHeader(string Label)
         {
             // If the label isn't ASCII, default it.
-            if (!IsAscii(Label)) Label = "Dexpedition64 V01 by HonkeyKong";
+            if (!IsText(Label)) Label = "Dexpedition64 V01 by HonkeyKong";
             byte[] header = new byte[256];
             byte[] idBlock = GenerateID();
 
+            // Just in case some smartass finds a way to 
+            // cram more than 32 characters in the text box...
             byte[] LabelBytes = new byte[32];
             if(Label.Length >= 32) Array.Copy(Encoding.ASCII.GetBytes(Label), LabelBytes, 32);
             else Array.Copy(Encoding.ASCII.GetBytes(Label), LabelBytes, Label.Length);
@@ -294,11 +299,11 @@ namespace Dexpedition64
             // Read the serial number
             byte[] serial = br.ReadBytes(28);
 
-            // Read the Checksums
+            // Read the checksums
             short checkSum1 = br.ReadInt16();
             short checkSum2 = br.ReadInt16();
 
-            // Print our Checksums
+            // Convert our checksums to strings
             this.CheckSum1 = checkSum1.ToString("X2");
             this.CheckSum2 = checkSum2.ToString("X2");
 
@@ -325,19 +330,30 @@ namespace Dexpedition64
             byte[] LabelBackup2Bytes = br.ReadBytes(32);
 
             // Now comes the fun part. Sanity checking all this shit.
-            if (((cardLabel[0] == 0x00) && (LabelBackup1Bytes[0] != 0x00)) || ((cardLabel[0] == 0x00) && (LabelBackup2Bytes[0] != 0x00)))
+            if ((!IsText(Encoding.ASCII.GetString(cardLabel))) && ((LabelBackup1Bytes[0] != 0x00) || (LabelBackup2Bytes[0] != 0x00)))
             {
                 // Label is probably fucked, restore from backup?
-                if (LabelBackup1Bytes.SequenceEqual(LabelBackup2Bytes))
+                if ((LabelBackup1Bytes.SequenceEqual(LabelBackup2Bytes)) && (IsText(Encoding.ASCII.GetString(LabelBackup1Bytes))))
                 {
                     // Looks like we're actually using my backup section.
+                    MessageBox.Show("Card label is corrupt. Attempting to repair with backup 1.", "Bad Label", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     Array.Copy(LabelBackup1Bytes, cardLabel, LabelBackup1Bytes.Length);
                     this.Label = Encoding.UTF8.GetString(LabelBackup1Bytes);
                 }
-                else // Copy from backup 2, I guess?
+                else // Backup 1 might be fucked too. Copy from backup 2, I guess?
                 {
-                    Array.Copy(LabelBackup2Bytes, cardLabel, LabelBackup2Bytes.Length);
-                    this.Label = Encoding.UTF8.GetString(LabelBackup1Bytes);
+                    MessageBox.Show("Card label and first backup appear to be corrupt. Attempting to repair label from backup #2.", "Bad Label", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    if (IsText(Encoding.ASCII.GetString(LabelBackup2Bytes)))
+                    {
+                        MessageBox.Show("Successfully repaired card label.", "Repair Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        Array.Copy(LabelBackup2Bytes, cardLabel, LabelBackup2Bytes.Length);
+                        this.Label = Encoding.UTF8.GetString(LabelBackup2Bytes);
+                    }
+                    else
+                    {
+                        MessageBox.Show("Repair failed, possibly no backup. Using default label.", "Repair failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        this.Label = "Dexpedition64 v01 By HonkeyKong";
+                    }
                 }
             }
 
@@ -346,14 +362,15 @@ namespace Dexpedition64
 
             // Sanity check the ID block backups to make sure they match.
             // If they don't, just throw a warning. It'll get rebuilt anyway.
-            if ((!idBlockBackup.SequenceEqual(idBlockBackup2)) || (!idBlockBackup.SequenceEqual(idBlockBackup3)))
+            //! This happens way too often, and is actually really annoying.
+            /*if ((!idBlockBackup.SequenceEqual(idBlockBackup2))) || (!idBlockBackup.SequenceEqual(idBlockBackup3)))
             {
                 MessageBox.Show("ID Block backups don't match.\n" +
                     "This could mean your original ID block is corrupt,\n" +
                     "or your backups are just messed up.\n" +
                     "This will be fixed when saving an MPK or rewriting the card.",
                     "ID Mismatch!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
+            }*/
 
             // Convert our serial number to a hex string.
             this.SerialNumber = string.Join("", serial.Select(hex => string.Format("{0:X2}", hex)));
@@ -431,32 +448,37 @@ namespace Dexpedition64
                     short SavedPosition = (short)fs.Position;
 
                     MemoryStream header = new MemoryStream(br.ReadBytes(32));
-                    MPKNote note = new MPKNote();
-
                     if (header.ToArray()[0] != 0x00)
                     {
+                        MPKNote note = new MPKNote();
                         note.ParseHeader(header.ToArray());
-                        MemoryStream noteStream = new MemoryStream();
-                        BinaryWriter noteData = new BinaryWriter(noteStream);
-
-                        short nextNote = note.StartPage;
-                        short lastNote = note.StartPage;
-
-                        while (nextNote != 0x0001)
+                        /// It seems like some games just zero out the start page
+                        /// and start a new note entry, or is this a DexDrive thing?
+                        /// Either way, this should fix invalid note table entries.
+                        if (note.StartPage >= 5)
                         {
-                            // Set the position to read the note data
-                            fs.Position = SeekPos + (this.PageSize * nextNote);
-                            noteData.Write(br.ReadBytes(this.PageSize));
-                            note.Pages.Add(nextNote);
-                            lastNote = nextNote; // Update lastNote
-                            nextNote = IndexTable[nextNote];
-                        }
+                            MemoryStream noteStream = new MemoryStream();
+                            BinaryWriter noteData = new BinaryWriter(noteStream);
 
-                        // Calculate the page size based on the difference between last page and start page
-                        note.PageSize = lastNote - note.StartPage + 1;
-                        note.Data = noteStream.ToArray();
-                        totalPages += note.PageSize;
-                        notes.Add(note);
+                            short nextNote = note.StartPage;
+                            short lastNote = note.StartPage;
+
+                            while (nextNote != 0x0001)
+                            {
+                                // Set the position to read the note data
+                                fs.Position = SeekPos + (this.PageSize * nextNote);
+                                noteData.Write(br.ReadBytes(this.PageSize));
+                                note.Pages.Add(nextNote);
+                                lastNote = nextNote; // Update lastNote
+                                nextNote = IndexTable[nextNote];
+                            }
+
+                            // Calculate the page size based on the difference between last page and start page
+                            note.PageSize = lastNote - note.StartPage + 1;
+                            note.Data = noteStream.ToArray();
+                            totalPages += note.PageSize;
+                            notes.Add(note);
+                        }
                     }
 
                     // Restore the position to read the next note entry
@@ -533,31 +555,34 @@ namespace Dexpedition64
                     if (header.ToArray()[0] != 0x00)
                     {
                         note.ParseHeader(header.ToArray());
-                        MemoryStream noteStream = new MemoryStream();
-                        BinaryWriter noteData = new BinaryWriter(noteStream);
+                        if (note.StartPage >= 5)
+                        {
+                            MemoryStream noteStream = new MemoryStream();
+                            BinaryWriter noteData = new BinaryWriter(noteStream);
 
-                        if (IndexTable[note.StartPage] == 0x0001)
-                        {
-                            noteData.Write(Data, this.PageSize * (note.StartPage - 5), this.PageSize);
-                            note.PageSize = 1;
-                        }
-                        else
-                        {
-                            short nextNote = note.StartPage;
-                            while (IndexTable[nextNote] != 0x0001)
+                            if (IndexTable[note.StartPage] == 0x0001)
                             {
-                                note.PageSize++;
-                                noteData.Write(Data, this.PageSize * (nextNote - 5), this.PageSize);
-                                note.Pages.Add(nextNote);
-                                nextNote++;
+                                noteData.Write(Data, this.PageSize * (note.StartPage - 5), this.PageSize);
+                                note.PageSize = 1;
                             }
-                            if (IndexTable[nextNote] == 0x0001)
+                            else
                             {
-                                noteData.Write(Data, this.PageSize * (nextNote - 4), this.PageSize);
+                                short nextNote = note.StartPage;
+                                while (IndexTable[nextNote] != 0x0001)
+                                {
+                                    note.PageSize++;
+                                    noteData.Write(Data, this.PageSize * (nextNote - 5), this.PageSize);
+                                    note.Pages.Add(nextNote);
+                                    nextNote++;
+                                }
+                                if (IndexTable[nextNote] == 0x0001)
+                                {
+                                    noteData.Write(Data, this.PageSize * (nextNote - 4), this.PageSize);
+                                }
                             }
+                            note.Data = noteStream.ToArray();
+                            notes.Add(note);
                         }
-                        note.Data = noteStream.ToArray();
-                        notes.Add(note);
                     }
                 }
                 if (!IndexTable.SequenceEqual(IndexTable2)) MessageBox.Show(

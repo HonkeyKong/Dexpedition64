@@ -23,7 +23,7 @@ namespace Dexpedition64
         {
             txtLabel.Text = mpk.Label;
             lblSerial.Text = $"Serial: {mpk.SerialNumber}";
-            lblCkSum1.Text = $"Checksum: 0x{mpk.CheckSum1:X4}";
+            lblCkSum1.Text = $"Checksum: 0x{mpk.CheckSum1:X04}";
             if (mpk.RealCheckSum == mpk.CheckSum1) lblCkSum1.ForeColor = System.Drawing.Color.Green;
             else lblCkSum1.ForeColor = System.Drawing.Color.Red;
         }
@@ -180,8 +180,16 @@ namespace Dexpedition64
                 {
                     if (saveFileDialog.ShowDialog() == DialogResult.OK)
                     {
-                        File.WriteAllBytes(saveFileDialog.FileName, mpk.rawData);
-                        MessageBox.Show("Raw MPK saved.", "Done", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        try
+                        {
+                            File.WriteAllBytes(saveFileDialog.FileName, mpk.rawData);
+                            MessageBox.Show("Raw MPK saved.", "Done", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                        catch(ArgumentNullException ex)
+                        {
+                            MessageBox.Show("Write failed. Did you try writing raw data from a new MPK? That won't work!", "Raw Write Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return;
+                        }
                     }
                     return;
                 }
@@ -291,30 +299,39 @@ namespace Dexpedition64
                 }
                 else if (result == DialogResult.Yes)
                 {
-                    MemoryStream dataStream = new MemoryStream(mpk.rawData);
-                    BinaryReader dataReader = new BinaryReader(dataStream);
-                    DexDrive drive = new DexDrive();
-                    // Set up the progress bar.
-                    pbCardProgress.Value = 0;
-                    pbCardProgress.Minimum = 0;
-                    pbCardProgress.Maximum = 128;
-                    pbCardProgress.Step = 1;
-                    // Start the write loop.
-                    if (drive.StartDexDrive($"COM{cbComPort.Text}"))
+                    try
                     {
-                        for (ushort i = 0; i < 128; i++)
+                        MemoryStream dataStream = new MemoryStream(mpk.rawData);
+                        BinaryReader dataReader = new BinaryReader(dataStream);
+                        DexDrive drive = new DexDrive();
+                        // Set up the progress bar.
+                        pbCardProgress.Value = 0;
+                        pbCardProgress.Minimum = 0;
+                        pbCardProgress.Maximum = 128;
+                        pbCardProgress.Step = 1;
+                        // Start the write loop.
+                        if (drive.StartDexDrive($"COM{cbComPort.Text}"))
                         {
-                            if (!drive.WriteMemoryCardFrame(i, dataReader.ReadBytes(mpk.PageSize)))
+                            for (ushort i = 0; i < 128; i++)
                             {
-                                MessageBox.Show($"Writing Frame {i} failed.", "Write Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                return;
+                                if (!drive.WriteMemoryCardFrame(i, dataReader.ReadBytes(mpk.PageSize)))
+                                {
+                                    MessageBox.Show($"Writing Frame {i} failed.", "Write Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                    return;
+                                }
+                                pbCardProgress.PerformStep();
                             }
-                            pbCardProgress.PerformStep();
+                            MessageBox.Show("Card written.", "Success!", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
-                        MessageBox.Show("Card written.", "Success!", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        drive.StopDexDrive();
+                        return;
+                    } 
+                    catch(ArgumentNullException ex)
+                    {
+                        MessageBox.Show("Reading raw MPK data failed.\nAre you sure you didn't try doing this with a new MPK?\n" +
+                            "You should only use this function with physical cards and MPK files.", "Whoops!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
                     }
-                    drive.StopDexDrive();
-                    return;
                 }
             }
 
