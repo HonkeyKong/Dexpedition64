@@ -1,4 +1,6 @@
-﻿using System;
+﻿// ! WINDOWS COPY - KNOWN GOOD ! //
+
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Windows.Forms;
